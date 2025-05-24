@@ -78,7 +78,7 @@ Turn 4 (sales_rep): "Excellent! Our AI automatically analyzes leads and sugge...
 Turn 5 (customer): "That sounds interesting. What's the pricing like?" -> Probability: 0.5234
 
 Final Conversion Probability: 52.34%
-Final Status: 🟡 Medium
+Final Status: 🟢 High
 ```
 
 ### Detailed Analysis with Agent
@@ -126,8 +126,8 @@ Each turn analysis provides:
 ```
 
 ### Status Indicators
-- 🟢 **High** (≥70%): Strong conversion potential - focus on closing
-- 🟡 **Medium** (≥50%): Good potential - build value and address concerns  
+- 🟢 **High** (≥50%): Strong conversion potential - focus on closing
+- 🟡 **Medium** (≥40%): Good potential - build value and address concerns  
 - 🟠 **Low** (≥30%): Needs improvement - re-engage or discover deeper needs
 - 🔴 **Very Low** (<30%): Poor fit or major obstacles - consider re-qualifying
 

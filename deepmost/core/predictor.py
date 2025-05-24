@@ -230,8 +230,8 @@ class SalesPredictor:
         }
 
     def _get_status(self, probability: float) -> str:
-        if probability >= 0.7: return "🟢 High"
-        if probability >= 0.5: return "🟡 Medium"
+        if probability >= 0.5: return "🟢 High"
+        if probability >= 0.4: return "🟡 Medium"
         if probability >= 0.3: return "🟠 Low"
         return "🔴 Very Low"
 
@@ -239,9 +239,9 @@ class SalesPredictor:
         cust_eng = metrics.get('customer_engagement', 0.5)
         sales_eff = metrics.get('sales_effectiveness', 0.5)
 
-        if probability >= 0.7: 
+        if probability >= 0.5: 
             return "Focus on closing: Propose next steps, clarify final questions, or initiate purchase process."
-        if probability >= 0.5:
+        if probability >= 0.4:
             if sales_eff < 0.6:
                 return "Address concerns and build value: Refine sales approach, highlight benefits."
             return "Build value: Reinforce benefits, handle objections, guide towards commitment."
