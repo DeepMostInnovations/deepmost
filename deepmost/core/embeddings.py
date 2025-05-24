@@ -95,7 +95,7 @@ class OpenSourceEmbeddings:
                 from llama_cpp import Llama
                 
                 llama_params = {
-                    "n_gpu_layers": -1 if device.type == 'cuda' else 0,
+                    "n_gpu_layers": 30,
                     "n_ctx": 2048, # Model context window
                     "verbose": False 
                 }
