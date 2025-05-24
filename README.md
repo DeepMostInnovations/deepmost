@@ -20,14 +20,13 @@ A powerful Python package for analyzing sales conversations and tracking convers
 
 Requires **Python 3.11** (does not support other versions).
 
-### Recommended Installation (GPU Support)
-For best performance and LLM-powered metrics:
+### Recommended Installation 
 
 ```bash
-pip install deepmost[gpu]
+pip install deepmost
 ```
 
-### Manual GPU Setup (If automatic fails)
+### GPU Setup 
 
 **For NVIDIA CUDA:**
 ```bash

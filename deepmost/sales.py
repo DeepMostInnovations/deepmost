@@ -70,6 +70,19 @@ class Agent:
             if not os.path.exists(model_path) and auto_download:
                 print(f"Downloading {'Azure' if self.use_azure else 'open-source'} model to {model_path}...")
                 download_model(model_url, model_path)
+        elif model_path.startswith(('http://', 'https://')):
+            # Handle URL: download to local cache
+            import hashlib
+            url_hash = hashlib.md5(model_path.encode()).hexdigest()[:8]
+            local_model_path = os.path.expanduser(f"~/.deepmost/models/downloaded_{url_hash}.zip")
+            
+            if not os.path.exists(local_model_path) and auto_download:
+                print(f"Downloading model from URL to {local_model_path}...")
+                download_model(model_path, local_model_path)
+            elif not os.path.exists(local_model_path):
+                raise FileNotFoundError(f"Model URL provided but auto_download=False and local cache not found: {local_model_path}")
+            
+            model_path = local_model_path
         
         # Initialize predictor
         self.predictor = SalesPredictor(

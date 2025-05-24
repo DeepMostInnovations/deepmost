@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepmost"
-version = "0.1.8"
+version = "0.2.2"
 authors = [
     {name = "DeepMost Innovations", email = "support@deepmostai.com"},
 ]
@@ -25,14 +25,16 @@ classifiers = [
 ]
 
 dependencies = [
-    "torch>=2.0.0",
-    "transformers>=4.30.0",
-    "stable-baselines3>=2.0.0",
-    "gymnasium>=0.28.0",
-    "numpy>=1.23.0",
-    "requests>=2.28.0",
-    "tqdm>=4.60.0",
-    "huggingface-hub>=0.17.0",
+    "torch==2.6.0",
+    "transformers==4.51.3",
+    "stable-baselines3==2.6.0",
+    "gymnasium==1.1.1",
+    "numpy==2.0.2",
+    "requests==2.32.3",
+    "tqdm==4.67.1",
+    "huggingface-hub==0.31.2",
+    "llama-cpp-python==0.3.9",
+    "openai==1.78.1"
 ]
 
 [project.optional-dependencies]

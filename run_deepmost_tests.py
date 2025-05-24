@@ -3,7 +3,7 @@ from deepmost import sales
 conversation = [
     "Hello, I'm looking for information on your new AI-powered CRM",
     "You've come to the right place! Our new AI CRM is designed to help businesses like yours increase sales efficiency. What specific challenges are you facing?",
-    "We struggle with lead prioritization and follow-up timing",
+    "not interested, bye",
     "Excellent, those are two key strengths. Our AI analyzes lead behavior and automatically suggests optimal follow-up times. Would you like to see a demo?",
     "That sounds interesting. What's the pricing like?"
 ]
