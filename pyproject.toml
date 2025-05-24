@@ -1,0 +1,59 @@
+[build-system]
+# Ensure setuptools and wheel are available in the isolated build environment
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+# backend-path = ["."] # Not strictly necessary for setuptools but harmless
+
+[project]
+name = "deepmost"
+version = "0.1.4"
+authors = [
+    {name = "DeepMost Innovations", email = "support@deepmostai.com"},
+]
+description = "Sales conversion prediction using reinforcement learning"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+keywords = ["sales", "conversion", "prediction", "reinforcement-learning", "ai", "machine-learning", "llm", "nlp", "gguf"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "stable-baselines3>=2.0.0",
+    "gymnasium>=0.28.0",
+    "numpy>=1.23.0",
+    "requests>=2.28.0",
+    "tqdm>=4.60.0",
+    "huggingface-hub>=0.17.0",
+]
+
+[project.optional-dependencies]
+gpu = [
+    "llama-cpp-python[server]>=0.2.20", # For local GGUF model support
+]
+dev = [
+    "deepmost[gpu]", 
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.10.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/DeepMostInnovations/deepmost"
+"Bug Reports" = "https://github.com/DeepMostInnovations/deepmost/issues"
+"Source" = "https://github.com/DeepMostInnovations/deepmost"
+"Documentation" = "https://deepmost.readthedocs.io/"
+"Model Repository" = "https://huggingface.co/DeepMostInnovations"
