@@ -18,7 +18,7 @@ A powerful Python package for predicting sales conversion probability using rein
 
 ## 📦 Installation
 
-Requires **Python 3.11, does not support on other versions**.
+Requires **Python 3.11** (does not support other versions).
 
 ### Basic Installation
 Installs the core package with CPU-based open-source embeddings. For dynamic metrics (recommended for accuracy) and response generation, install with `[gpu]` and provide an `llm_model`.
@@ -26,12 +26,46 @@ Installs the core package with CPU-based open-source embeddings. For dynamic met
 pip install deepmost
 ```
 
-### With GPU Support (for local GGUF LLMs & GPU-accelerated Embeddings)
+### With GPU Support (Recommended)
 Enables GPU acceleration for open-source embeddings and local GGUF LLMs. **This is recommended for using the LLM-driven dynamic metrics feature.**
+
+#### Automatic GPU Detection (Easiest):
 ```bash
 pip install deepmost[gpu]
 ```
 
+#### Manual GPU Setup (If automatic fails):
+
+**For NVIDIA CUDA:**
+```bash
+CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir
+pip install deepmost
+```
+
+**For Apple Metal (M1/M2/M3):**
+```bash
+CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir
+pip install deepmost
+```
+
+**For AMD ROCm (Linux):**
+```bash
+CMAKE_ARGS="-DGGML_HIPBLAS=on" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir
+pip install deepmost
+```
+
+### Verify Installation
+```python
+import torch
+from deepmost import sales
+
+print(f"CUDA Available: {torch.cuda.is_available()}")
+if torch.cuda.is_available(): 
+    print(f"CUDA Version: {torch.version.cuda}, GPU: {torch.cuda.get_device_name(0)}")
+
+info = sales.get_system_info()
+print(f"Supported Backends: {info['supported_backends']}")
+```
 
 ## 🎯 Quick Start
 
@@ -197,23 +231,60 @@ conversation = [
 ## 🛠️ Troubleshooting
 
 ### GPU Support & `llama-cpp-python`
-- Ensure compatible NVIDIA GPU, CUDA toolkit, and drivers.
-- If `deepmost[gpu]` installation fails, try installing `llama-cpp-python` manually first, potentially with `CMAKE_ARGS` for CUDA: `CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir`.
-```python
-import torch
-print(f"CUDA Available: {torch.cuda.is_available()}")
-if torch.cuda.is_available(): print(f"CUDA Version: {torch.version.cuda}, GPU: {torch.cuda.get_device_name(0)}")
-```
+If you encounter issues with GPU installation:
+
+**Prerequisites:**
+- **CUDA**: NVIDIA GPU with CUDA 11.8+ or 12.x
+- **Metal**: Apple Silicon (M1/M2/M3) or AMD GPUs on macOS
+- **CMake**: Required for compilation
+
+**Common Issues:**
+
+1. **CUDA Toolkit Not Found**:
+   ```bash
+   # Verify CUDA installation
+   nvcc --version
+   ```
+
+2. **CMake Not Found**:
+   ```bash
+   # Install CMake
+   pip install cmake
+   # or: sudo apt install cmake (Ubuntu)
+   # or: brew install cmake (macOS)
+   ```
+
+3. **Compilation Fails**:
+   ```bash
+   # Try with verbose output for debugging
+   CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir --verbose
+   ```
+
+4. **Test GPU Support**:
+   ```python
+   import torch
+   print(f"CUDA Available: {torch.cuda.is_available()}")
+   if torch.cuda.is_available(): 
+       print(f"CUDA Version: {torch.version.cuda}, GPU: {torch.cuda.get_device_name(0)}")
+   
+   # Test llama-cpp-python
+   try:
+       from llama_cpp import Llama
+       print("llama-cpp-python installed successfully")
+   except ImportError:
+       print("llama-cpp-python not installed")
+   ```
 
 ### PPO Model Download Issues
 If automatic download of the PPO model fails:
 ```python
 from deepmost.core.utils import download_model
-from deepmost.sales import _get_default_model_info # Ensure this function still works without Azure logic or defaults appropriately
+from deepmost.sales import _get_default_model_info
 
 # For open-source default
-model_url, default_model_path = _get_default_model_info(use_azure=False) # Explicitly open-source
+model_url, default_model_path = _get_default_model_info(use_azure=False)
 print(f"PPO model URL: {model_url}, Default path: {default_model_path}")
+
 # To manually download:
 # import os
 # os.makedirs(os.path.dirname(default_model_path), exist_ok=True)
@@ -233,15 +304,29 @@ print(f"PPO model URL: {model_url}, Default path: {default_model_path}")
     ```
 - **Metrics Fallback**: If an LLM is specified but fails to load or provide valid JSON metrics, DeepMost logs a warning and uses default static metrics (0.5 for engagement/effectiveness), impacting prediction accuracy. Check logs for `DEBUG: LLM Raw Output for JSON metrics:` to see the LLM's direct response.
 
+### Environment Variables for Persistent GPU Setup
+For persistent configuration, add to your shell profile:
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+export CMAKE_ARGS="-DGGML_CUDA=on"  # For CUDA
+# or
+export CMAKE_ARGS="-DGGML_METAL=on"  # For Metal
+```
+
 ## 📈 Performance Tips
 
-1.  **Persistent Agent**: Initialize `sales.Agent()` once and reuse it.
-2.  **GPU Optimization**: Ensure `use_gpu=True`. Keep drivers/CUDA updated.
-3.  **Appropriate LLM Size**: Balance LLM quality with resources. Models like `unsloth/Llama-3.2-3B-Instruct-GGUF` or other 1B-3B parameter GGUF models (e.g., Phi-3 Instruct Mini) often provide a good balance for the metrics task. Larger models (7B+) may offer higher quality responses/metrics at the cost of more resources.
+1. **Persistent Agent**: Initialize `sales.Agent()` once and reuse it.
+2. **GPU Optimization**: Ensure `use_gpu=True`. Keep drivers/CUDA updated.
+3. **Appropriate LLM Size**: Balance LLM quality with resources. Models like `unsloth/Llama-3.2-3B-Instruct-GGUF` or other 1B-3B parameter GGUF models (e.g., Phi-3 Instruct Mini) often provide a good balance for the metrics task. Larger models (7B+) may offer higher quality responses/metrics at the cost of more resources.
+4. **Memory Management**: 
+   - Use `n_gpu_layers=-1` for full GPU usage
+   - Adjust `n_ctx=2048` or lower for faster inference
+   - Monitor GPU memory with `nvidia-smi` (CUDA) or Activity Monitor (Metal)
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) (you'll need to create this file).
+We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 ```bash
 git clone https://github.com/DeepMostInnovations/deepmost.git
 cd deepmost
@@ -275,4 +360,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 Made with ❤️ by [DeepMost Innovations](https://www.deepmostai.com/)
-

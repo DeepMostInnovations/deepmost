@@ -2,11 +2,10 @@
 # Ensure setuptools and wheel are available in the isolated build environment
 requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
-# backend-path = ["."] # Not strictly necessary for setuptools but harmless
 
 [project]
 name = "deepmost"
-version = "0.1.4"
+version = "0.1.5"
 authors = [
     {name = "DeepMost Innovations", email = "support@deepmostai.com"},
 ]
@@ -37,9 +36,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# GPU support with llama-cpp-python compiled for CUDA/Metal
 gpu = [
-    "llama-cpp-python[server]>=0.2.20", # For local GGUF model support
+    "llama-cpp-python[server]>=0.2.20",
 ]
+# Development dependencies including GPU support
 dev = [
     "deepmost[gpu]", 
     "pytest>=7.0.0",
@@ -57,3 +58,17 @@ dev = [
 "Source" = "https://github.com/DeepMostInnovations/deepmost"
 "Documentation" = "https://deepmost.readthedocs.io/"
 "Model Repository" = "https://huggingface.co/DeepMostInnovations"
+
+# CRITICAL: Package discovery configuration
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["deepmost*"]
+exclude = ["tests*", "*.tests", "*.tests.*", "tests.*"]
+
+# Alternative explicit package configuration if auto-discovery fails
+# [tool.setuptools.packages]
+# find = {}
+
+# Include additional data files if needed
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.md", "*.rst"]
