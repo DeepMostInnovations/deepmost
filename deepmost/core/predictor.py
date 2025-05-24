@@ -108,7 +108,8 @@ class SalesPredictor:
             'probability': probability,
             'turn': turn_number,
             'metrics': metrics,
-            'status': self._get_status(probability)
+            'status': self._get_status(probability),
+            'suggested_action': self._get_suggested_action(probability, metrics)
         }
     
     def generate_response_and_predict(
@@ -156,3 +157,14 @@ class SalesPredictor:
             return "🟠 Low"
         else:
             return "🔴 Very Low"
+    
+    def _get_suggested_action(self, probability: float, metrics: Dict[str, float]) -> str:
+        """Get suggested action based on probability and metrics"""
+        if probability >= 0.7:
+            return "Close the deal or ask for next steps"
+        elif probability >= 0.5:
+            return "Address specific concerns and build value"
+        elif probability >= 0.3:
+            return "Focus on engagement and needs discovery"
+        else:
+            return "Re-qualify the lead and identify pain points"

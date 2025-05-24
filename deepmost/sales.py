@@ -1,13 +1,32 @@
 """High-level API for sales conversion prediction"""
 
 import os
+import sys
 from typing import List, Dict, Optional, Union
 from .core.predictor import SalesPredictor
 from .core.utils import download_model
 
-# Default model URL
-DEFAULT_MODEL_URL = "https://github.com/DeepMostInnovations/sales-conversion-model-reinf-learning/raw/main/sales_conversion_model.zip"
-DEFAULT_MODEL_PATH = os.path.expanduser("~/.deepmost/models/sales_conversion_model.zip")
+# Model URLs based on Python version and backend
+OPENSOURCE_MODEL_URL = "https://huggingface.co/DeepMostInnovations/sales-conversion-model-reinf-learning/resolve/main/sales_conversion_model.zip"
+AZURE_MODEL_URL = "https://huggingface.co/DeepMostInnovations/sales-conversion-model-reinf-learning/resolve/main/sales_model.zip"
+
+# Default paths
+OPENSOURCE_MODEL_PATH = os.path.expanduser("~/.deepmost/models/sales_conversion_model.zip")
+AZURE_MODEL_PATH = os.path.expanduser("~/.deepmost/models/sales_model.zip")
+
+
+def _get_default_model_info(use_azure: bool = False):
+    """Get model URL and path based on backend and Python version"""
+    python_version = sys.version_info
+    
+    if use_azure:
+        if python_version < (3, 10):
+            raise RuntimeError("Azure OpenAI backend requires Python 3.10 or higher")
+        return AZURE_MODEL_URL, AZURE_MODEL_PATH
+    else:
+        if python_version < (3, 11):
+            raise RuntimeError("Open-source backend requires Python 3.11 or higher")
+        return OPENSOURCE_MODEL_URL, OPENSOURCE_MODEL_PATH
 
 
 class Agent:
@@ -22,13 +41,14 @@ class Agent:
         embedding_model: str = "BAAI/bge-m3",
         use_gpu: bool = True,
         llm_model: Optional[str] = None,
-        auto_download: bool = True
+        auto_download: bool = True,
+        force_backend: Optional[str] = None
     ):
         """
         Initialize the sales agent.
         
         Args:
-            model_path: Path to the PPO model. If None, downloads default model.
+            model_path: Path to the PPO model. If None, downloads appropriate model.
             azure_api_key: Azure OpenAI API key (for Azure embeddings)
             azure_endpoint: Azure OpenAI endpoint
             azure_deployment: Azure deployment name for embeddings
@@ -36,16 +56,20 @@ class Agent:
             use_gpu: Whether to use GPU for inference
             llm_model: Optional LLM model path or HF repo for response generation
             auto_download: Whether to auto-download model if not found
+            force_backend: Force 'azure' or 'opensource' backend (for testing)
         """
+        # Determine backend
+        if force_backend:
+            self.use_azure = force_backend.lower() == 'azure'
+        else:
+            self.use_azure = all([azure_api_key, azure_endpoint, azure_deployment])
+        
         # Handle model path
         if model_path is None:
-            model_path = DEFAULT_MODEL_PATH
+            model_url, model_path = _get_default_model_info(self.use_azure)
             if not os.path.exists(model_path) and auto_download:
-                print(f"Downloading model to {model_path}...")
-                download_model(DEFAULT_MODEL_URL, model_path)
-        
-        # Determine backend
-        self.use_azure = all([azure_api_key, azure_endpoint, azure_deployment])
+                print(f"Downloading {'Azure' if self.use_azure else 'open-source'} model to {model_path}...")
+                download_model(model_url, model_path)
         
         # Initialize predictor
         self.predictor = SalesPredictor(
@@ -148,3 +172,30 @@ def predict(conversation: Union[List[Dict[str, str]], List[str]], **kwargs) -> f
     agent = Agent(**kwargs)
     result = agent.predict(conversation)
     return result['probability']
+
+
+def get_system_info():
+    """Get system information for debugging"""
+    import sys
+    import torch
+    
+    info = {
+        'python_version': f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        'cuda_available': torch.cuda.is_available(),
+        'supported_backends': []
+    }
+    
+    # Check backend support
+    try:
+        _get_default_model_info(use_azure=False)
+        info['supported_backends'].append('opensource')
+    except RuntimeError:
+        pass
+    
+    try:
+        _get_default_model_info(use_azure=True)
+        info['supported_backends'].append('azure')
+    except RuntimeError:
+        pass
+    
+    return info
