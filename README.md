@@ -18,7 +18,7 @@ A powerful Python package for predicting sales conversion probability using rein
 
 ## 📦 Installation
 
-Requires **Python 3.11 or higher**.
+Requires **Python 3.11, does not support on other versions**.
 
 ### Basic Installation
 Installs the core package with CPU-based open-source embeddings. For dynamic metrics (recommended for accuracy) and response generation, install with `[gpu]` and provide an `llm_model`.
@@ -31,7 +31,7 @@ Enables GPU acceleration for open-source embeddings and local GGUF LLMs. **This 
 ```bash
 pip install deepmost[gpu]
 ```
-*(Note: The `[azure]` and `[full]` installation options are not applicable if focusing solely on the open-source backend.)*
+
 
 ## 🎯 Quick Start
 
@@ -275,18 +275,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 Made with ❤️ by [DeepMost Innovations](https://deepmost.ai)
---- END OF FILE README.md ---
-
-**Summary of Changes:**
-
-*   **Removed Azure Sections:**
-    *   Removed "Dual Backend Support" mention of Azure in features.
-    *   Removed `pip install deepmost[azure]` and `deepmost[full]` from installation, leaving only basic and `[gpu]`.
-    *   Removed the "Using Azure OpenAI Embeddings" example from Configuration Options.
-    *   Removed Azure-specific parameters (`azure_api_key`, etc.) from the "Advanced Configuration" example.
-*   **Simplified Features:** "Dual Backend Support" now implicitly means only the open-source one.
-*   **Updated Example LLM:** Consistently used `unsloth/Llama-3.2-3B-Instruct-GGUF` in examples where a specific LLM was mentioned.
-*   **Troubleshooting PPO Model Download:** Ensured the example for manual download uses `_get_default_model_info(use_azure=False)`.
-*   **Acknowledgments:** Removed the OpenAI Python library mention as Azure is no longer featured.
-*   General streamlining to reflect the open-source focus.
 

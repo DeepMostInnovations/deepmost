@@ -76,7 +76,7 @@ classifiers_python = [
 
 setup(
     name="deepmost",
-    version="0.1.1",
+    version="0.1.2",
     author="DeepMost Innovations",
     author_email="support@deepmost.ai",
     description="Sales conversion prediction using reinforcement learning",
