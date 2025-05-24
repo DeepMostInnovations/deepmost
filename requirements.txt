@@ -1,0 +1,8 @@
+torch>=2.0.0
+transformers>=4.30.0
+stable_baselines3==2.6.0
+gymnasium>=0.29.1
+numpy>=1.20.0
+requests>=2.25.0
+tqdm>=4.65.0
+huggingface-hub>=0.16.0
