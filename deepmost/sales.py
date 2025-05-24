@@ -121,6 +121,75 @@ class Agent:
         
         return result
     
+    def analyze_conversation_progression(
+        self,
+        conversation: Union[List[Dict[str, str]], List[str]],
+        conversation_id: Optional[str] = None,
+        print_results: bool = True
+    ) -> List[Dict[str, Union[str, float, int]]]:
+        """
+        Analyze how conversion probability evolves turn by turn through a conversation.
+        
+        Args:
+            conversation: List of messages (same format as predict method)
+            conversation_id: Optional conversation ID for tracking
+            print_results: Whether to print formatted results to console
+        
+        Returns:
+            List of dicts with turn-by-turn analysis results
+        """
+        # Normalize conversation format
+        if conversation and isinstance(conversation[0], str):
+            normalized = []
+            for i, msg in enumerate(conversation):
+                speaker = "customer" if i % 2 == 0 else "sales_rep"
+                normalized.append({"speaker": speaker, "message": msg})
+            conversation = normalized
+        
+        if conversation_id is None:
+            import uuid
+            conversation_id = str(uuid.uuid4())
+        
+        results = []
+        
+        # Analyze each turn progressively
+        for i in range(len(conversation)):
+            # Get conversation up to current turn
+            conversation_so_far = conversation[:i+1]
+            
+            # Get prediction for this turn
+            result = self.predictor.predict_conversion(
+                conversation_history=conversation_so_far,
+                conversation_id=f"{conversation_id}_progression",  # Use unique ID for progression
+                is_incremental_prediction=False  # Each turn is analyzed independently
+            )
+            
+            current_msg = conversation[i]
+            turn_result = {
+                'turn': i + 1,
+                'speaker': current_msg['speaker'],
+                'message': current_msg['message'],
+                'probability': result['probability'],
+                'status': result['status'],
+                'metrics': result['metrics']
+            }
+            
+            results.append(turn_result)
+            
+            if print_results:
+                # Format message for display (truncate if too long)
+                display_msg = current_msg['message']
+                if len(display_msg) > 60:
+                    display_msg = display_msg[:57] + "..."
+                
+                print(f"Turn {i + 1} ({current_msg['speaker']}): \"{display_msg}\" -> Probability: {result['probability']:.4f}")
+        
+        if print_results:
+            print(f"\nFinal Conversion Probability: {results[-1]['probability']:.2%}")
+            print(f"Final Status: {results[-1]['status']}")
+        
+        return results
+    
     def predict_with_response(
         self,
         conversation: Union[List[Dict[str, str]], List[str]],
@@ -172,6 +241,22 @@ def predict(conversation: Union[List[Dict[str, str]], List[str]], **kwargs) -> f
     agent = Agent(**kwargs)
     result = agent.predict(conversation)
     return result['probability']
+
+
+def analyze_progression(conversation: Union[List[Dict[str, str]], List[str]], **kwargs) -> List[Dict]:
+    """
+    Quick turn-by-turn analysis function.
+    
+    Example:
+        from deepmost import sales
+        results = sales.analyze_progression([
+            "Hi, I need a CRM", 
+            "Our CRM starts at $29/month",
+            "That sounds interesting, tell me more"
+        ])
+    """
+    agent = Agent(**kwargs)
+    return agent.analyze_conversation_progression(conversation, print_results=True)
 
 
 def get_system_info():
