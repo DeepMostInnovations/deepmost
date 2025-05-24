@@ -64,7 +64,7 @@ else:
 
 setup(
     name="deepmost",
-    version="0.1.0",
+    version="0.1.1",
     author="DeepMost Innovations",
     author_email="support@deepmostai.com",
     description="Sales conversion prediction using reinforcement learning",
