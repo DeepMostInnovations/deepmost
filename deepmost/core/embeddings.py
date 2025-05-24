@@ -5,8 +5,8 @@ import torch
 import logging
 from typing import List, Dict, Optional, Protocol
 from transformers import AutoTokenizer, AutoModel
-import re # Still useful for some cleanup or simple cases
-import json # For parsing JSON output
+import re
+import json
 import os
 import random
 
@@ -34,14 +34,14 @@ class EmbeddingProvider(Protocol):
 
 
 class OpenSourceEmbeddings:
-    """Open-source embedding provider using HuggingFace models and optional LLM for metrics/responses."""
+    """Open-source embedding provider using HuggingFace models and LLM for comprehensive metrics analysis."""
 
     def __init__(
         self,
-        model_name: str, # Embedding model name
+        model_name: str,
         device: torch.device,
         expected_dim: int,
-        llm_model: Optional[str] = None  # Path to local GGUF or HF repo ID for GGUF LLM
+        llm_model: Optional[str] = None
     ):
         self.device = device
         self.expected_dim = expected_dim
@@ -53,41 +53,6 @@ class OpenSourceEmbeddings:
         self.native_dim = self.model.config.hidden_size
         logger.info(f"Embedding model loaded. Native dim: {self.native_dim}, Expected dim: {self.expected_dim}")
 
-        # Initialize conversation style and flow options (from dataset generator)
-        self.conversation_styles = [
-            "casual_friendly", "direct_professional", "technical_detailed",
-            "consultative_advisory", "empathetic_supportive", "skeptical_challenging",
-            "urgent_time_pressed", "confused_overwhelmed", "knowledgeable_assertive",
-            "storytelling_narrative"
-        ]
-        
-        self.conversation_flows = [
-            "standard_linear", "multiple_objection_loops", "subject_switching",
-            "interrupted_followup", "technical_deep_dive", "competitive_comparison",
-            "gradual_discovery", "immediate_interest", "initial_rejection",
-            "stakeholder_expansion", "pricing_negotiation", "implementation_concerns",
-            "value_justification", "relationship_building", "multi_session", "demo_walkthrough"
-        ]
-        
-        self.communication_channels = [
-            "email", "live_chat", "phone_call", "video_call", 
-            "in_person", "sms", "social_media"
-        ]
-        
-        # Customer needs for sophisticated analysis
-        self.customer_needs = [
-            {"type": "efficiency", "keywords": ["faster", "streamline", "automate", "time-consuming", "manual", "process", "workflow"]},
-            {"type": "cost_reduction", "keywords": ["expenses", "budget", "save money", "affordable", "cost-effective", "ROI", "investment"]},
-            {"type": "growth", "keywords": ["scale", "expand", "increase revenue", "market share", "competitive", "opportunity", "growth"]},
-            {"type": "compliance", "keywords": ["regulations", "requirements", "standards", "audit", "legal", "compliance", "risk"]},
-            {"type": "integration", "keywords": ["connect", "compatible", "ecosystem", "work with", "existing systems", "API", "integration"]},
-            {"type": "usability", "keywords": ["easy to use", "intuitive", "learning curve", "training", "user-friendly", "simple", "interface"]},
-            {"type": "reliability", "keywords": ["uptime", "stable", "dependable", "trust", "consistent", "failover", "backup"]},
-            {"type": "security", "keywords": ["protect", "data security", "encryption", "sensitive information", "breach", "privacy", "secure"]},
-            {"type": "support", "keywords": ["help", "customer service", "response time", "training", "documentation", "support team", "assistance"]},
-            {"type": "analytics", "keywords": ["insights", "reporting", "dashboard", "metrics", "data", "visibility", "analytics"]}
-        ]
-
         self.llm = None
         if llm_model:
             logger.info(f"Attempting to load GGUF LLM: {llm_model}")
@@ -95,8 +60,8 @@ class OpenSourceEmbeddings:
                 from llama_cpp import Llama
                 
                 llama_params = {
-                    "n_gpu_layers": 30,
-                    "n_ctx": 2048, # Model context window
+                    "n_gpu_layers": -1 if device.type == 'cuda' else 0,
+                    "n_ctx": 8192,
                     "verbose": False 
                 }
 
@@ -104,8 +69,7 @@ class OpenSourceEmbeddings:
                     repo_id = llm_model
                     logger.info(f"LLM '{repo_id}' is a HuggingFace repo. Using Llama.from_pretrained.")
                     
-                    # Try with a common pattern or None to let LlamaCPP pick
-                    gguf_filename_pattern = "*Q4_K_M.gguf" # Example, could be None
+                    gguf_filename_pattern = "*Q4_K_M.gguf"
                     
                     try:
                         self.llm = Llama.from_pretrained(
@@ -135,15 +99,15 @@ class OpenSourceEmbeddings:
                 logger.warning("llama-cpp-python is not installed. LLM features will be unavailable.")
             except FileNotFoundError as e: 
                 logger.error(e)
-                self.llm = None # Ensure self.llm is None if loading fails
+                self.llm = None
             except Exception as e:
                 logger.warning(f"Failed to load GGUF LLM '{llm_model}': {e}. LLM features may be unavailable.")
-                self.llm = None # Ensure self.llm is None
+                self.llm = None
         
         if not self.llm:
             logger.info(
-                "No LLM loaded. Metric analysis will use defaults, and response generation will be basic. "
-                "This may significantly affect prediction accuracy if PPO model was trained with LLM-derived metrics."
+                "No LLM loaded. Metric analysis will use intelligent fallbacks. "
+                "LLM-derived comprehensive metrics are highly recommended for best accuracy."
             )
 
     def get_embedding(self, text: str, turn_number: int) -> np.ndarray:
@@ -174,173 +138,296 @@ class OpenSourceEmbeddings:
         scaled_embedding = embedding * (0.6 + 0.4 * progress)
         return scaled_embedding.astype(np.float32)
 
-    def _detect_conversation_style(self, history: List[Dict[str, str]]) -> str:
-        """Detect the conversation style based on message patterns."""
-        if not history:
-            return random.choice(self.conversation_styles)
+    def _get_comprehensive_metrics_from_llm(self, history: List[Dict[str, str]], turn_number: int) -> Dict:
+        """Get all sophisticated metrics from LLM via comprehensive JSON analysis."""
+        if not self.llm:
+            return self._get_fallback_metrics(history, turn_number)
         
-        # Analyze conversation characteristics
-        message_lengths = [len(msg['message'].split()) for msg in history]
-        avg_length = np.mean(message_lengths) if message_lengths else 10
+        conversation_text = "\n".join([f"{msg['speaker'].capitalize()}: {msg['message']}" for msg in history])
         
-        # Check for technical terms
-        tech_keywords = ['API', 'integration', 'security', 'infrastructure', 'scalability', 'architecture']
-        has_tech_terms = any(any(keyword.lower() in msg['message'].lower() for keyword in tech_keywords) for msg in history)
-        
-        # Check for urgency indicators
-        urgency_keywords = ['urgent', 'asap', 'quickly', 'deadline', 'immediate', 'time-sensitive']
-        has_urgency = any(any(keyword.lower() in msg['message'].lower() for keyword in urgency_keywords) for msg in history)
-        
-        # Check for casual language
-        casual_indicators = ['hey', 'yeah', 'cool', 'awesome', 'thanks', '!', 'lol', 'btw']
-        casual_score = sum(sum(indicator in msg['message'].lower() for indicator in casual_indicators) for msg in history)
-        
-        # Check for confusion indicators
-        confusion_keywords = ['confused', 'not sure', 'unclear', 'help me understand', 'what do you mean']
-        has_confusion = any(any(keyword.lower() in msg['message'].lower() for keyword in confusion_keywords) for msg in history)
-        
-        # Determine style based on characteristics
-        if has_tech_terms and avg_length > 15:
-            return "technical_detailed"
-        elif has_urgency:
-            return "urgent_time_pressed"
-        elif casual_score > 2:
-            return "casual_friendly"
-        elif has_confusion:
-            return "confused_overwhelmed"
-        elif avg_length > 20:
-            return "consultative_advisory"
-        elif avg_length < 8:
-            return "direct_professional"
-        else:
-            return random.choice(self.conversation_styles)
+        if not conversation_text.strip():
+            logger.warning("Conversation history is empty for LLM comprehensive analysis.")
+            return self._get_fallback_metrics(history, turn_number)
 
-    def _detect_conversation_flow(self, history: List[Dict[str, str]]) -> str:
-        """Detect the conversation flow pattern based on message sequence."""
-        if len(history) < 3:
-            return "standard_linear"
-        
-        # Check for multiple objections
-        objection_keywords = ['but', 'however', 'concern', 'worry', 'issue', 'problem', 'expensive', 'cost']
-        objection_count = sum(sum(keyword.lower() in msg['message'].lower() for keyword in objection_keywords) for msg in history if msg['speaker'] == 'customer')
-        
-        # Check for topic switching
-        topics = ['price', 'feature', 'integration', 'support', 'timeline', 'demo', 'trial']
-        topics_mentioned = set()
-        for msg in history:
-            for topic in topics:
-                if topic in msg['message'].lower():
-                    topics_mentioned.add(topic)
-        
-        # Check for competitive mentions
-        competitor_keywords = ['competitor', 'alternative', 'vs', 'compare', 'other solution']
-        has_competition = any(any(keyword.lower() in msg['message'].lower() for keyword in competitor_keywords) for msg in history)
-        
-        # Check for immediate interest
-        interest_keywords = ['interested', 'sounds good', 'perfect', 'exactly', 'great', 'love it']
-        early_interest = any(any(keyword.lower() in history[i]['message'].lower() for keyword in interest_keywords) for i in range(min(3, len(history))) if history[i]['speaker'] == 'customer')
-        
-        # Check for pricing focus
-        pricing_keywords = ['price', 'cost', 'budget', 'expensive', 'affordable', 'discount']
-        pricing_focus = sum(sum(keyword.lower() in msg['message'].lower() for keyword in pricing_keywords) for msg in history) >= 3
-        
-        # Determine flow pattern
-        if objection_count >= 3:
-            return "multiple_objection_loops"
-        elif len(topics_mentioned) >= 4:
-            return "subject_switching"
-        elif has_competition:
-            return "competitive_comparison"
-        elif early_interest:
-            return "immediate_interest"
-        elif pricing_focus:
-            return "pricing_negotiation"
-        elif any('demo' in msg['message'].lower() for msg in history):
-            return "demo_walkthrough"
-        else:
-            return random.choice(self.conversation_flows)
+        # Comprehensive prompt for all metrics
+        prompt = f"""Analyze the following sales conversation and provide a comprehensive analysis in JSON format.
 
-    def _detect_communication_channel(self, history: List[Dict[str, str]]) -> str:
-        """Detect the communication channel based on message characteristics."""
-        if not history:
-            return random.choice(self.communication_channels)
-        
-        # Analyze message characteristics
-        message_lengths = [len(msg['message']) for msg in history]
-        avg_length = np.mean(message_lengths) if message_lengths else 100
-        
-        # Check for email indicators
-        email_indicators = ['subject:', 'dear', 'sincerely', 'best regards', 'email', 'attachment']
-        has_email_markers = any(any(indicator.lower() in msg['message'].lower() for indicator in email_indicators) for msg in history)
-        
-        # Check for chat indicators
-        chat_indicators = ['hey', 'hi there', '👍', '😊', 'lol', 'brb', 'u', 'ur']
-        has_chat_markers = any(any(indicator in msg['message'].lower() for indicator in chat_indicators) for msg in history)
-        
-        # Check for phone/video indicators
-        verbal_indicators = ['can you hear me', 'video', 'screen share', 'mute', 'audio', 'call']
-        has_verbal_markers = any(any(indicator.lower() in msg['message'].lower() for indicator in verbal_indicators) for msg in history)
-        
-        # Determine channel
-        if has_email_markers or avg_length > 200:
-            return "email"
-        elif has_chat_markers and avg_length < 100:
-            return "live_chat"
-        elif has_verbal_markers:
-            return random.choice(["phone_call", "video_call"])
-        elif avg_length < 50:
-            return "sms"
-        else:
-            return random.choice(self.communication_channels)
+CONVERSATION:
+---
+{conversation_text}
+---
 
-    def _detect_customer_needs(self, history: List[Dict[str, str]]) -> List[str]:
-        """Detect primary customer needs based on conversation content."""
-        detected_needs = []
+Provide a detailed analysis covering ALL aspects below. Respond ONLY with valid JSON containing these exact keys:
+
+{{
+  "customer_engagement": 0.0-1.0,
+  "sales_effectiveness": 0.0-1.0,
+  "conversation_style": "string",
+  "conversation_flow": "string", 
+  "communication_channel": "string",
+  "primary_customer_needs": ["list", "of", "needs"],
+  "engagement_trend": 0.0-1.0,
+  "objection_count": 0.0-1.0,
+  "value_proposition_mentions": 0.0-1.0,
+  "technical_depth": 0.0-1.0,
+  "urgency_level": 0.0-1.0,
+  "competitive_context": 0.0-1.0,
+  "pricing_sensitivity": 0.0-1.0,
+  "decision_authority_signals": 0.0-1.0
+}}
+
+DETAILED SCORING GUIDELINES:
+
+**customer_engagement** (0.0-1.0): How engaged and interested the customer appears
+- 0.0-0.2: Completely disengaged, very short responses, no interest
+- 0.3-0.4: Low engagement, minimal responses, seems distracted
+- 0.5-0.6: Moderate engagement, participating normally
+- 0.7-0.8: High engagement, asking questions, showing interest
+- 0.9-1.0: Extremely engaged, ready to buy, making decisions
+
+**sales_effectiveness** (0.0-1.0): How effective the sales representative's approach is
+- 0.0-0.2: Very poor approach, pushing away customer, unprofessional
+- 0.3-0.4: Poor approach, not addressing needs, unclear responses
+- 0.5-0.6: Adequate approach, some value shown, decent communication
+- 0.7-0.8: Good approach, addressing needs well, building value
+- 0.9-1.0: Excellent approach, perfectly addressing needs, very professional
+
+**conversation_style** (string): Choose the most fitting style:
+"casual_friendly", "direct_professional", "technical_detailed", "consultative_advisory", 
+"empathetic_supportive", "skeptical_challenging", "urgent_time_pressed", "confused_overwhelmed", 
+"knowledgeable_assertive", "storytelling_narrative"
+
+**conversation_flow** (string): Choose the most fitting flow pattern:
+"standard_linear", "multiple_objection_loops", "subject_switching", "interrupted_followup", 
+"technical_deep_dive", "competitive_comparison", "gradual_discovery", "immediate_interest", 
+"initial_rejection", "stakeholder_expansion", "pricing_negotiation", "implementation_concerns", 
+"value_justification", "relationship_building", "multi_session", "demo_walkthrough"
+
+**communication_channel** (string): Choose the most likely channel:
+"email", "live_chat", "phone_call", "video_call", "in_person", "sms", "social_media"
+
+**primary_customer_needs** (array): Select 2-3 most relevant needs:
+"efficiency", "cost_reduction", "growth", "compliance", "integration", "usability", 
+"reliability", "security", "support", "analytics"
+
+**engagement_trend** (0.0-1.0): Is customer engagement increasing or decreasing?
+- 0.0-0.3: Strongly declining engagement
+- 0.4-0.6: Stable or slightly changing engagement  
+- 0.7-1.0: Increasing engagement
+
+**objection_count** (0.0-1.0): Level of customer objections/resistance
+- 0.0: No objections
+- 0.5: Moderate objections (price, features, timing)
+- 1.0: Strong objections (not interested, won't work, too expensive)
+
+**value_proposition_mentions** (0.0-1.0): How well sales rep articulated value
+- 0.0: No value mentioned
+- 0.5: Some benefits mentioned
+- 1.0: Strong, clear value propositions presented
+
+**technical_depth** (0.0-1.0): How technical/detailed the conversation is
+- 0.0: Basic, non-technical discussion
+- 0.5: Some technical terms or concepts
+- 1.0: Highly technical, detailed technical discussion
+
+**urgency_level** (0.0-1.0): Time pressure or urgency indicators
+- 0.0: No urgency mentioned
+- 0.5: Some time considerations
+- 1.0: High urgency, deadlines, time-sensitive
+
+**competitive_context** (0.0-1.0): Mentions of competitors or alternatives
+- 0.0: No competitive mentions
+- 0.5: Some comparison or alternatives discussed
+- 1.0: Heavy competitive comparison focus
+
+**pricing_sensitivity** (0.0-1.0): Customer's focus on cost/budget
+- 0.0: Price not discussed or not a concern
+- 0.5: Some price discussion or budget considerations
+- 1.0: Heavy focus on price, budget constraints, cost concerns
+
+**decision_authority_signals** (0.0-1.0): Customer's decision-making power
+- 0.0-0.3: Low authority ("need to check with boss", "team decision")
+- 0.4-0.6: Moderate authority (some input but not final decision)
+- 0.7-1.0: High authority ("I decide", "my budget", "I approve")
+
+CRITICAL: Respond with ONLY the JSON object. No explanations or additional text.
+
+JSON Response:"""
+
+        try:
+            llm_response = self.llm(
+                prompt,
+                max_tokens=300,
+                temperature=0.1,
+                stop=["\n\n", "```"],
+            )
+            raw_llm_output = llm_response['choices'][0]['text'].strip()
+            logger.debug(f"DEBUG: LLM Raw Output for comprehensive metrics: '{raw_llm_output}'")
+
+            # Parse the JSON
+            json_match = re.search(r"\{.*\}", raw_llm_output, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                try:
+                    parsed_json = json.loads(json_str)
+                    
+                    # Validate and normalize the JSON response
+                    validated_metrics = self._validate_and_normalize_metrics(parsed_json)
+                    logger.info(f"Successfully parsed comprehensive LLM metrics with {len(validated_metrics)} fields")
+                    return validated_metrics
+                    
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to decode JSON from LLM output: '{json_str}'. Error: {e}")
+            else:
+                logger.warning(f"No JSON object found in LLM output: '{raw_llm_output}'")
         
-        # Combine all customer messages
+        except Exception as e:
+            logger.error(f"LLM comprehensive metrics analysis failed: {e}", exc_info=True)
+        
+        # Fallback to intelligent defaults
+        logger.warning("Using intelligent fallback metrics due to LLM parsing failure")
+        return self._get_fallback_metrics(history, turn_number)
+
+    def _validate_and_normalize_metrics(self, parsed_json: Dict) -> Dict:
+        """Validate and normalize the LLM-provided metrics."""
+        validated = {}
+        
+        # Numeric fields (0.0-1.0)
+        numeric_fields = [
+            'customer_engagement', 'sales_effectiveness', 'engagement_trend',
+            'objection_count', 'value_proposition_mentions', 'technical_depth',
+            'urgency_level', 'competitive_context', 'pricing_sensitivity',
+            'decision_authority_signals'
+        ]
+        
+        for field in numeric_fields:
+            value = parsed_json.get(field, 0.5)
+            if isinstance(value, (int, float)):
+                validated[field] = float(np.clip(value, 0.0, 1.0))
+            else:
+                validated[field] = 0.5
+        
+        # String fields with valid options
+        style_options = [
+            "casual_friendly", "direct_professional", "technical_detailed", "consultative_advisory",
+            "empathetic_supportive", "skeptical_challenging", "urgent_time_pressed", "confused_overwhelmed",
+            "knowledgeable_assertive", "storytelling_narrative"
+        ]
+        validated['conversation_style'] = parsed_json.get('conversation_style', 'direct_professional')
+        if validated['conversation_style'] not in style_options:
+            validated['conversation_style'] = 'direct_professional'
+        
+        flow_options = [
+            "standard_linear", "multiple_objection_loops", "subject_switching", "interrupted_followup",
+            "technical_deep_dive", "competitive_comparison", "gradual_discovery", "immediate_interest",
+            "initial_rejection", "stakeholder_expansion", "pricing_negotiation", "implementation_concerns",
+            "value_justification", "relationship_building", "multi_session", "demo_walkthrough"
+        ]
+        validated['conversation_flow'] = parsed_json.get('conversation_flow', 'standard_linear')
+        if validated['conversation_flow'] not in flow_options:
+            validated['conversation_flow'] = 'standard_linear'
+        
+        channel_options = ["email", "live_chat", "phone_call", "video_call", "in_person", "sms", "social_media"]
+        validated['communication_channel'] = parsed_json.get('communication_channel', 'email')
+        if validated['communication_channel'] not in channel_options:
+            validated['communication_channel'] = 'email'
+        
+        # Array field for customer needs
+        need_options = [
+            "efficiency", "cost_reduction", "growth", "compliance", "integration",
+            "usability", "reliability", "security", "support", "analytics"
+        ]
+        needs = parsed_json.get('primary_customer_needs', ['efficiency', 'cost_reduction'])
+        if isinstance(needs, list):
+            validated['primary_customer_needs'] = [need for need in needs if need in need_options][:3]
+        else:
+            validated['primary_customer_needs'] = ['efficiency', 'cost_reduction']
+        
+        if not validated['primary_customer_needs']:
+            validated['primary_customer_needs'] = ['efficiency', 'cost_reduction']
+        
+        return validated
+
+    def _get_fallback_metrics(self, history: List[Dict[str, str]], turn_number: int) -> Dict:
+        """Generate intelligent fallback metrics when LLM is not available."""
+        conversation_length = len(history)
+        
+        # Basic text analysis for fallbacks
         customer_text = " ".join([msg['message'].lower() for msg in history if msg['speaker'] == 'customer'])
+        sales_text = " ".join([msg['message'].lower() for msg in history if msg['speaker'] == 'sales_rep'])
         
-        # Check each need type
-        for need in self.customer_needs:
-            keyword_matches = sum(1 for keyword in need['keywords'] if keyword in customer_text)
-            if keyword_matches >= 2:  # Threshold for detecting a need
-                detected_needs.append(need['type'])
+        # Intelligent fallback based on content analysis
+        engagement = 0.5
+        effectiveness = 0.5
         
-        # Return top 3 detected needs or random ones if none detected
-        if detected_needs:
-            return detected_needs[:3]
-        else:
-            return random.sample([need['type'] for need in self.customer_needs], 3)
+        # Adjust based on obvious signals
+        if any(signal in customer_text for signal in ['buy', 'purchase', 'interested', 'yes', 'sounds good']):
+            engagement = min(0.8, engagement + 0.3)
+        
+        if any(obj in customer_text for obj in ['expensive', 'costly', 'not interested', 'no']):
+            engagement = max(0.2, engagement - 0.3)
+        
+        if any(poor in sales_text for poor in ['ok', 'sure', 'fine']) and len(sales_text) < 20:
+            effectiveness = max(0.2, effectiveness - 0.3)
+        
+        return {
+            'customer_engagement': engagement,
+            'sales_effectiveness': effectiveness,
+            'conversation_style': 'direct_professional',
+            'conversation_flow': 'standard_linear',
+            'communication_channel': 'email',
+            'primary_customer_needs': ['efficiency', 'cost_reduction'],
+            'engagement_trend': 0.5,
+            'objection_count': 0.3 if any(obj in customer_text for obj in ['expensive', 'costly']) else 0.1,
+            'value_proposition_mentions': 0.4,
+            'technical_depth': 0.3,
+            'urgency_level': 0.2,
+            'competitive_context': 0.1,
+            'pricing_sensitivity': 0.4 if 'price' in customer_text or 'cost' in customer_text else 0.2,
+            'decision_authority_signals': 0.5
+        }
 
-    def _generate_probability_trajectory(self, history: List[Dict[str, str]], final_engagement: float, final_effectiveness: float) -> Dict[int, float]:
-        """Generate realistic probability trajectory for the conversation."""
+    def _generate_probability_trajectory(self, history: List[Dict[str, str]], comprehensive_metrics: Dict) -> Dict[int, float]:
+        """Generate realistic probability trajectory using comprehensive LLM metrics."""
         trajectory = {}
         num_turns = len(history)
         
         if num_turns == 0:
             return {0: 0.5}
         
-        # Determine overall trend based on engagement and effectiveness
-        base_prob = 0.3  # Starting probability
-        trend_factor = (final_engagement + final_effectiveness) / 2
+        # Use comprehensive metrics for trajectory generation
+        engagement = comprehensive_metrics.get('customer_engagement', 0.5)
+        effectiveness = comprehensive_metrics.get('sales_effectiveness', 0.5)
+        engagement_trend = comprehensive_metrics.get('engagement_trend', 0.5)
+        objection_count = comprehensive_metrics.get('objection_count', 0.3)
         
-        # Generate trajectory with realistic variations
+        # More sophisticated trajectory calculation
+        base_prob = 0.2
+        trend_factor = (engagement * 0.5 + effectiveness * 0.3 + engagement_trend * 0.2)
+        
+        # Adjust for objections
+        objection_penalty = objection_count * 0.3
+        
         for i in range(num_turns):
-            # Base progression
             progress = i / max(1, num_turns - 1)
             
-            # Calculate probability with trend and some randomness
-            prob = base_prob + (trend_factor - 0.5) * progress
+            # Calculate probability with sophisticated weighting
+            prob = base_prob + (trend_factor - objection_penalty - 0.4) * progress * 1.2
             
-            # Add some realistic variation
+            # Apply engagement trend
+            if engagement_trend > 0.7:
+                prob += progress * 0.2  # Increasing engagement boosts trajectory
+            elif engagement_trend < 0.3:
+                prob -= progress * 0.15  # Decreasing engagement hurts trajectory
+            
+            # Smooth progression with some realistic variation
             if i > 0:
                 prev_prob = trajectory[i-1]
-                # Limit big jumps
-                max_change = 0.15
+                max_change = 0.2
                 prob = max(prev_prob - max_change, min(prev_prob + max_change, prob))
             
-            # Add noise but keep reasonable bounds
-            noise = random.uniform(-0.05, 0.05)
+            # Add small realistic noise
+            noise = random.uniform(-0.02, 0.02)
             prob = np.clip(prob + noise, 0.05, 0.95)
             
             trajectory[i] = round(prob, 4)
@@ -351,269 +438,47 @@ class OpenSourceEmbeddings:
         conversation_length = float(len(history))
         progress_metric = min(1.0, turn_number / self.MAX_TURNS_REFERENCE)
         
-        customer_engagement = 0.5 # Default
-        sales_effectiveness = 0.5 # Default
-        llm_derived = False
-
-        if self.llm:
-            logger.debug("Analyzing metrics using LLM (attempting JSON output).")
-            conversation_text = "\n".join([f"{msg['speaker'].capitalize()}: {msg['message']}" for msg in history])
-            
-            if not conversation_text.strip():
-                logger.warning("Conversation history is empty for LLM metric analysis. Using default metrics.")
-            else:
-                # Enhanced prompting for more comprehensive analysis
-                prompt = f"""Analyze the following sales conversation snippet.
-Based ONLY on the provided text, provide scores from 0.0 to 1.0 for "customer_engagement" and "sales_effectiveness".
-
-"customer_engagement" reflects how engaged the customer is:
-- 0.0-0.3: Disengaged, short responses, showing little interest
-- 0.4-0.6: Moderately engaged, asking some questions, participating
-- 0.7-1.0: Highly engaged, asking detailed questions, showing strong interest
-
-"sales_effectiveness" reflects how effective the sales representative's approach is:
-- 0.0-0.3: Poor approach, not addressing needs, pushy or unclear
-- 0.4-0.6: Adequate approach, some value shown, moderate rapport
-- 0.7-1.0: Excellent approach, addressing needs well, building strong value
-
-Conversation:
----
-{conversation_text}
----
-
-Your response MUST be a VALID JSON object containing ONLY the keys "customer_engagement" and "sales_effectiveness" with their corresponding float scores. For example:
-{{
-  "customer_engagement": 0.7,
-  "sales_effectiveness": 0.6
-}}
-
-JSON Response:
-"""
-                logger.debug(f"DEBUG: LLM Prompt for JSON metrics:\n{prompt}")
-                
-                try:
-                    llm_response = self.llm(
-                        prompt,
-                        max_tokens=150,
-                        temperature=0.0,
-                        stop=["\n\n", "```"],
-                    )
-                    raw_llm_output = llm_response['choices'][0]['text'].strip()
-                    logger.debug(f"DEBUG: LLM Raw Output for JSON metrics: '{raw_llm_output}'")
-
-                    # Attempt to parse the JSON
-                    json_match = re.search(r"\{.*\}", raw_llm_output, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group(0)
-                        try:
-                            parsed_json = json.loads(json_str)
-                            ce = parsed_json.get("customer_engagement")
-                            se = parsed_json.get("sales_effectiveness")
-
-                            if isinstance(ce, (float, int)) and isinstance(se, (float, int)):
-                                customer_engagement = float(ce)
-                                sales_effectiveness = float(se)
-                                llm_derived = True
-                                logger.debug(f"Successfully parsed JSON metrics: CE={customer_engagement}, SE={sales_effectiveness}")
-                            else:
-                                logger.warning(f"Parsed JSON but metrics are not valid numbers or missing: {parsed_json}")
-                        except json.JSONDecodeError as e:
-                            logger.warning(f"Failed to decode JSON from LLM output: '{json_str}'. Error: {e}")
-                    else:
-                        logger.warning(f"No JSON object found in LLM output: '{raw_llm_output}'")
-                
-                except Exception as e:
-                    logger.error(f"LLM metrics analysis (JSON attempt) failed: {e}", exc_info=True)
+        # Get comprehensive metrics from LLM
+        comprehensive_metrics = self._get_comprehensive_metrics_from_llm(history, turn_number)
         
-        if not llm_derived:
-            logger.warning(
-                "LLM not available or failed to derive metrics (customer_engagement, sales_effectiveness) via JSON. "
-                "Using default placeholder values (0.5). "
-                "If PPO model was trained with LLM-derived metrics, prediction quality will be significantly affected."
-            )
-
-        # Generate sophisticated metrics based on conversation analysis
-        conversation_style = self._detect_conversation_style(history)
-        conversation_flow = self._detect_conversation_flow(history)
-        communication_channel = self._detect_communication_channel(history)
-        customer_needs = self._detect_customer_needs(history)
-        probability_trajectory = self._generate_probability_trajectory(history, customer_engagement, sales_effectiveness)
-
+        # Generate sophisticated probability trajectory
+        probability_trajectory = self._generate_probability_trajectory(history, comprehensive_metrics)
+        
+        # Build final metrics dictionary combining all sources
         metrics = {
-            'customer_engagement': np.clip(customer_engagement, 0.0, 1.0),
-            'sales_effectiveness': np.clip(sales_effectiveness, 0.0, 1.0),
+            # Core metrics (required by PPO model)
+            'customer_engagement': comprehensive_metrics['customer_engagement'],
+            'sales_effectiveness': comprehensive_metrics['sales_effectiveness'],
             'conversation_length': conversation_length,
-            'outcome': 0.5, # Standard placeholder for inference
+            'outcome': 0.5,  # Standard placeholder for inference
             'progress': progress_metric,
             
-            # Enhanced metrics from dataset generator
-            'conversation_style': conversation_style,
-            'conversation_flow': conversation_flow,
-            'communication_channel': communication_channel,
-            'primary_customer_needs': customer_needs,
+            # Enhanced conversation characteristics
+            'conversation_style': comprehensive_metrics['conversation_style'],
+            'conversation_flow': comprehensive_metrics['conversation_flow'],
+            'communication_channel': comprehensive_metrics['communication_channel'],
+            'primary_customer_needs': comprehensive_metrics['primary_customer_needs'],
             'probability_trajectory': probability_trajectory,
             
-            # Derived metrics
-            'engagement_trend': self._calculate_engagement_trend(history),
-            'objection_count': self._count_objections(history),
-            'value_proposition_mentions': self._count_value_mentions(history),
-            'technical_depth': self._calculate_technical_depth(history),
-            'urgency_level': self._calculate_urgency_level(history),
-            'competitive_context': self._detect_competitive_context(history),
-            'pricing_sensitivity': self._calculate_pricing_sensitivity(history),
-            'decision_authority_signals': self._detect_decision_authority(history)
+            # Sophisticated behavioral analytics (all LLM-derived)
+            'engagement_trend': comprehensive_metrics['engagement_trend'],
+            'objection_count': comprehensive_metrics['objection_count'],
+            'value_proposition_mentions': comprehensive_metrics['value_proposition_mentions'],
+            'technical_depth': comprehensive_metrics['technical_depth'],
+            'urgency_level': comprehensive_metrics['urgency_level'],
+            'competitive_context': comprehensive_metrics['competitive_context'],
+            'pricing_sensitivity': comprehensive_metrics['pricing_sensitivity'],
+            'decision_authority_signals': comprehensive_metrics['decision_authority_signals']
         }
         
-        logger.info(f"Enhanced Metrics (LLM derived: {llm_derived}): {metrics}")
+        llm_derived = self.llm is not None
+        logger.info(f"Comprehensive Metrics Analysis (LLM derived: {llm_derived}) - "
+                   f"Engagement: {metrics['customer_engagement']:.2f}, "
+                   f"Effectiveness: {metrics['sales_effectiveness']:.2f}, "
+                   f"Style: {metrics['conversation_style']}, "
+                   f"Flow: {metrics['conversation_flow']}")
+        
         return metrics
-
-    def _calculate_engagement_trend(self, history: List[Dict[str, str]]) -> float:
-        """Calculate if customer engagement is increasing or decreasing."""
-        if len(history) < 4:
-            return 0.5
-        
-        # Compare first half vs second half message lengths and enthusiasm
-        mid_point = len(history) // 2
-        first_half = history[:mid_point]
-        second_half = history[mid_point:]
-        
-        first_half_lengths = [len(msg['message']) for msg in first_half if msg['speaker'] == 'customer']
-        second_half_lengths = [len(msg['message']) for msg in second_half if msg['speaker'] == 'customer']
-        
-        if not first_half_lengths or not second_half_lengths:
-            return 0.5
-        
-        avg_first = np.mean(first_half_lengths)
-        avg_second = np.mean(second_half_lengths)
-        
-        # Normalize to 0-1 scale
-        if avg_first == 0:
-            return 0.5
-        
-        trend = min(1.0, max(0.0, avg_second / avg_first))
-        return trend
-
-    def _count_objections(self, history: List[Dict[str, str]]) -> float:
-        """Count customer objections in the conversation."""
-        objection_keywords = [
-            'but', 'however', 'concern', 'worry', 'issue', 'problem', 
-            'expensive', 'cost', 'budget', 'not sure', 'hesitant',
-            'difficult', 'complex', 'time-consuming', 'risky'
-        ]
-        
-        objection_count = 0
-        for msg in history:
-            if msg['speaker'] == 'customer':
-                text = msg['message'].lower()
-                objection_count += sum(1 for keyword in objection_keywords if keyword in text)
-        
-        # Normalize to reasonable range (0-1)
-        return min(1.0, objection_count / 5.0)
-
-    def _count_value_mentions(self, history: List[Dict[str, str]]) -> float:
-        """Count mentions of value propositions by sales rep."""
-        value_keywords = [
-            'save', 'increase', 'improve', 'reduce', 'optimize', 'streamline',
-            'efficiency', 'productivity', 'ROI', 'return on investment',
-            'benefit', 'advantage', 'value', 'solution'
-        ]
-        
-        value_count = 0
-        for msg in history:
-            if msg['speaker'] == 'sales_rep':
-                text = msg['message'].lower()
-                value_count += sum(1 for keyword in value_keywords if keyword in text)
-        
-        # Normalize to reasonable range (0-1)
-        return min(1.0, value_count / 5.0)
-
-    def _calculate_technical_depth(self, history: List[Dict[str, str]]) -> float:
-        """Calculate the technical depth of the conversation."""
-        technical_keywords = [
-            'API', 'integration', 'security', 'infrastructure', 'scalability',
-            'architecture', 'database', 'cloud', 'server', 'protocol',
-            'encryption', 'authentication', 'deployment', 'configuration'
-        ]
-        
-        tech_count = 0
-        total_words = 0
-        
-        for msg in history:
-            text = msg['message'].lower()
-            words = text.split()
-            total_words += len(words)
-            tech_count += sum(1 for word in words if word in [k.lower() for k in technical_keywords])
-        
-        if total_words == 0:
-            return 0.0
-        
-        return min(1.0, tech_count / (total_words / 100))  # Normalize
-
-    def _calculate_urgency_level(self, history: List[Dict[str, str]]) -> float:
-        """Calculate urgency indicators in the conversation."""
-        urgency_keywords = [
-            'urgent', 'asap', 'quickly', 'deadline', 'immediate', 'rush',
-            'time-sensitive', 'soon', 'emergency', 'critical', 'priority'
-        ]
-        
-        urgency_count = 0
-        for msg in history:
-            text = msg['message'].lower()
-            urgency_count += sum(1 for keyword in urgency_keywords if keyword in text)
-        
-        return min(1.0, urgency_count / 3.0)
-
-    def _detect_competitive_context(self, history: List[Dict[str, str]]) -> float:
-        """Detect mentions of competitors or alternatives."""
-        competitive_keywords = [
-            'competitor', 'alternative', 'vs', 'compare', 'comparison',
-            'other solution', 'different option', 'similar product',
-            'evaluating', 'vendor', 'proposal'
-        ]
-        
-        competitive_mentions = 0
-        for msg in history:
-            text = msg['message'].lower()
-            competitive_mentions += sum(1 for keyword in competitive_keywords if keyword in text)
-        
-        return min(1.0, competitive_mentions / 2.0)
-
-    def _calculate_pricing_sensitivity(self, history: List[Dict[str, str]]) -> float:
-        """Calculate customer's price sensitivity."""
-        pricing_keywords = [
-            'price', 'cost', 'budget', 'expensive', 'affordable', 'cheap',
-            'discount', 'deal', 'pricing', 'money', 'investment', 'spend'
-        ]
-        
-        pricing_mentions = 0
-        for msg in history:
-            if msg['speaker'] == 'customer':
-                text = msg['message'].lower()
-                pricing_mentions += sum(1 for keyword in pricing_keywords if keyword in text)
-        
-        return min(1.0, pricing_mentions / 3.0)
-
-    def _detect_decision_authority(self, history: List[Dict[str, str]]) -> float:
-        """Detect customer's decision-making authority."""
-        authority_keywords = [
-            'I decide', 'my decision', 'I approve', 'I choose', 'my budget',
-            'I have authority', 'final say', 'up to me'
-        ]
-        
-        delegation_keywords = [
-            'need to check', 'ask my boss', 'team decision', 'committee',
-            'approval needed', 'not my call', 'someone else decides'
-        ]
-        
-        authority_score = 0
-        for msg in history:
-            if msg['speaker'] == 'customer':
-                text = msg['message'].lower()
-                authority_score += sum(1 for keyword in authority_keywords if keyword in text)
-                authority_score -= sum(1 for keyword in delegation_keywords if keyword in text)
-        
-        # Normalize to 0-1 range (0.5 = neutral)
-        return np.clip(0.5 + authority_score / 4.0, 0.0, 1.0)
 
     def generate_response(
         self,
@@ -652,7 +517,7 @@ JSON Response:
 
 
 class AzureEmbeddings:
-    """Azure OpenAI embedding provider"""
+    """Azure OpenAI embedding provider with basic enhanced metrics."""
 
     def __init__(
         self,
@@ -714,36 +579,45 @@ class AzureEmbeddings:
         return scaled_embedding.astype(np.float32)
 
     def analyze_metrics(self, history: List[Dict[str, str]], turn_number: int) -> Dict[str, float]:
-        logger.warning(
-            "AzureEmbeddings is using basic default metrics. "
-            "Enhanced metrics require LLM integration for full dataset compatibility."
-        )
+        logger.info("AzureEmbeddings using basic enhanced metrics. For full LLM analysis, use OpenSource backend with LLM.")
+        
         conversation_length = float(len(history))
         progress_metric = min(1.0, turn_number / self.MAX_TURNS_REFERENCE)
         
-        # Basic enhanced metrics for Azure backend
+        # Basic content analysis for Azure backend
+        customer_text = " ".join([msg['message'].lower() for msg in history if msg['speaker'] == 'customer'])
+        
+        engagement = 0.5
+        effectiveness = 0.5
+        
+        # Basic signal detection
+        if any(signal in customer_text for signal in ['buy', 'purchase', 'interested']):
+            engagement = 0.7
+        if any(obj in customer_text for obj in ['expensive', 'costly', 'not interested']):
+            engagement = 0.3
+        
         return {
-            'customer_engagement': 0.5,
-            'sales_effectiveness': 0.5,
+            'customer_engagement': engagement,
+            'sales_effectiveness': effectiveness,
             'conversation_length': conversation_length,
             'outcome': 0.5, 
             'progress': progress_metric,
             
             # Basic versions of enhanced metrics
-            'conversation_style': random.choice(["direct_professional", "casual_friendly", "technical_detailed"]),
-            'conversation_flow': random.choice(["standard_linear", "multiple_objection_loops", "pricing_negotiation"]),
-            'communication_channel': random.choice(["email", "phone_call", "live_chat"]),
-            'primary_customer_needs': random.sample(["efficiency", "cost_reduction", "growth"], 2),
+            'conversation_style': 'direct_professional',
+            'conversation_flow': 'standard_linear',
+            'communication_channel': 'email',
+            'primary_customer_needs': ['efficiency', 'cost_reduction'],
             'probability_trajectory': {i: 0.5 for i in range(len(history))},
             
             # Default derived metrics
             'engagement_trend': 0.5,
-            'objection_count': 0.2,
+            'objection_count': 0.3 if any(obj in customer_text for obj in ['expensive', 'costly']) else 0.1,
             'value_proposition_mentions': 0.3,
             'technical_depth': 0.4,
             'urgency_level': 0.2,
             'competitive_context': 0.1,
-            'pricing_sensitivity': 0.3,
+            'pricing_sensitivity': 0.4 if 'price' in customer_text or 'cost' in customer_text else 0.2,
             'decision_authority_signals': 0.5
         }
 

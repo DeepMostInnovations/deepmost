@@ -9,4 +9,4 @@ conversation = [
 ]
 
 # Get turn-by-turn analysis with automatic output
-results = sales.analyze_progression(conversation, llm_model="unsloth/Llama-3.2-3B-Instruct-GGUF")
+results = sales.analyze_progression(conversation, llm_model="unsloth/Qwen3-4B-GGUF")
