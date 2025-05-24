@@ -8,7 +8,7 @@ from .core.utils import download_model
 
 # Model URLs based on Python version and backend
 OPENSOURCE_MODEL_URL = "https://huggingface.co/DeepMostInnovations/sales-conversion-model-reinf-learning/resolve/main/sales_conversion_model.zip"
-AZURE_MODEL_URL = "https://huggingface.co/DeepMostInnovations/sales-conversion-model-reinf-learning/resolve/main/sales_model.zip"
+AZURE_MODEL_URL = "https://huggingface.co/DeepMostInnovations/sales-conversion-model-reinf-learning/resolve/main/sales_model_311.zip"
 
 # Default paths
 OPENSOURCE_MODEL_PATH = os.path.expanduser("~/.deepmost/models/sales_conversion_model.zip")

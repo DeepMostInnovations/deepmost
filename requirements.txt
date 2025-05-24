@@ -1,4 +1,4 @@
-torch==2.6.0+cu124
+torch==2.6.0
 transformers==4.51.3
 stable-baselines3==2.6.0
 gymnasium==1.1.1
