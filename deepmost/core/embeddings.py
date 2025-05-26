@@ -3,7 +3,7 @@
 import numpy as np
 import torch
 import logging
-from typing import List, Dict, Optional, Protocol
+from typing import List, Dict, Optional, Protocol, Tuple, Any # Added Tuple, Any
 from transformers import AutoTokenizer, AutoModel
 import re
 import json
@@ -19,7 +19,7 @@ class EmbeddingProvider(Protocol):
         """Get embedding for text"""
         ...
 
-    def analyze_metrics(self, history: List[Dict[str, str]], turn_number: int) -> Dict[str, float]:
+    def analyze_metrics(self, history: List[Dict[str, str]], turn_number: int) -> Dict[str, Any]: # Changed to Any
         """Analyze conversation metrics"""
         ...
 
@@ -45,7 +45,7 @@ class OpenSourceEmbeddings:
     ):
         self.device = device
         self.expected_dim = expected_dim
-        self.MAX_TURNS_REFERENCE = 20
+        self.MAX_TURNS_REFERENCE = 1000
 
         logger.info(f"Loading embedding model: {model_name}")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -69,7 +69,7 @@ class OpenSourceEmbeddings:
                     repo_id = llm_model
                     logger.info(f"LLM '{repo_id}' is a HuggingFace repo. Using Llama.from_pretrained.")
                     
-                    gguf_filename_pattern = "*Q4_K_M.gguf"
+                    gguf_filename_pattern = "*Q4_K_M.gguf" # Common pattern, adjust if needed
                     
                     try:
                         self.llm = Llama.from_pretrained(
@@ -138,16 +138,17 @@ class OpenSourceEmbeddings:
         scaled_embedding = embedding * (0.6 + 0.4 * progress)
         return scaled_embedding.astype(np.float32)
 
-    def _get_comprehensive_metrics_from_llm(self, history: List[Dict[str, str]], turn_number: int) -> Dict:
-        """Get all sophisticated metrics from LLM via comprehensive JSON analysis."""
+    def _get_comprehensive_metrics_from_llm(self, history: List[Dict[str, str]], turn_number: int) -> Tuple[Dict, bool]:
+        """Get all sophisticated metrics from LLM via comprehensive JSON analysis. Returns (metrics_dict, llm_successfully_used_flag)."""
+        llm_successfully_used = False
         if not self.llm:
-            return self._get_fallback_metrics(history, turn_number)
+            return self._get_fallback_metrics(history, turn_number), llm_successfully_used
         
         conversation_text = "\n".join([f"{msg['speaker'].capitalize()}: {msg['message']}" for msg in history])
         
         if not conversation_text.strip():
-            logger.warning("Conversation history is empty for LLM comprehensive analysis.")
-            return self._get_fallback_metrics(history, turn_number)
+            logger.warning("Conversation history is empty for LLM comprehensive analysis. Using fallback.")
+            return self._get_fallback_metrics(history, turn_number), llm_successfully_used
 
         # Comprehensive prompt for all metrics
         prompt = f"""Analyze the following sales conversation and provide a comprehensive analysis in JSON format.
@@ -257,42 +258,38 @@ JSON Response:"""
         try:
             llm_response = self.llm(
                 prompt,
-                max_tokens=300,
+                max_tokens=450, # Increased slightly for more complex JSON
                 temperature=0.1,
                 stop=["\n\n", "```"],
             )
             raw_llm_output = llm_response['choices'][0]['text'].strip()
             logger.debug(f"DEBUG: LLM Raw Output for comprehensive metrics: '{raw_llm_output}'")
 
-            # Parse the JSON
             json_match = re.search(r"\{.*\}", raw_llm_output, re.DOTALL)
             if json_match:
                 json_str = json_match.group(0)
                 try:
                     parsed_json = json.loads(json_str)
-                    
-                    # Validate and normalize the JSON response
                     validated_metrics = self._validate_and_normalize_metrics(parsed_json)
                     logger.info(f"Successfully parsed comprehensive LLM metrics with {len(validated_metrics)} fields")
-                    return validated_metrics
+                    llm_successfully_used = True
+                    return validated_metrics, llm_successfully_used
                     
                 except json.JSONDecodeError as e:
-                    logger.warning(f"Failed to decode JSON from LLM output: '{json_str}'. Error: {e}")
+                    logger.warning(f"Failed to decode JSON from LLM output: '{json_str}'. Error: {e}. Using fallback.")
             else:
-                logger.warning(f"No JSON object found in LLM output: '{raw_llm_output}'")
+                logger.warning(f"No JSON object found in LLM output: '{raw_llm_output}'. Using fallback.")
         
         except Exception as e:
-            logger.error(f"LLM comprehensive metrics analysis failed: {e}", exc_info=True)
+            logger.error(f"LLM comprehensive metrics analysis failed: {e}. Using fallback.", exc_info=True)
         
-        # Fallback to intelligent defaults
-        logger.warning("Using intelligent fallback metrics due to LLM parsing failure")
-        return self._get_fallback_metrics(history, turn_number)
+        # Fallback to intelligent defaults if LLM fails or JSON is problematic
+        return self._get_fallback_metrics(history, turn_number), llm_successfully_used
 
     def _validate_and_normalize_metrics(self, parsed_json: Dict) -> Dict:
         """Validate and normalize the LLM-provided metrics."""
         validated = {}
         
-        # Numeric fields (0.0-1.0)
         numeric_fields = [
             'customer_engagement', 'sales_effectiveness', 'engagement_trend',
             'objection_count', 'value_proposition_mentions', 'technical_depth',
@@ -301,13 +298,13 @@ JSON Response:"""
         ]
         
         for field in numeric_fields:
-            value = parsed_json.get(field, 0.5)
+            value = parsed_json.get(field) # Get value, default to None if missing
             if isinstance(value, (int, float)):
                 validated[field] = float(np.clip(value, 0.0, 1.0))
-            else:
-                validated[field] = 0.5
+            else: # If missing or wrong type, use a neutral default for numeric
+                logger.debug(f"Numeric field '{field}' missing or invalid type ('{value}'). Defaulting to 0.5.")
+                validated[field] = 0.5 
         
-        # String fields with valid options
         style_options = [
             "casual_friendly", "direct_professional", "technical_detailed", "consultative_advisory",
             "empathetic_supportive", "skeptical_challenging", "urgent_time_pressed", "confused_overwhelmed",
@@ -315,7 +312,8 @@ JSON Response:"""
         ]
         validated['conversation_style'] = parsed_json.get('conversation_style', 'direct_professional')
         if validated['conversation_style'] not in style_options:
-            validated['conversation_style'] = 'direct_professional'
+             logger.debug(f"Invalid 'conversation_style' ('{validated['conversation_style']}'). Defaulting.")
+             validated['conversation_style'] = 'direct_professional'
         
         flow_options = [
             "standard_linear", "multiple_objection_loops", "subject_switching", "interrupted_followup",
@@ -325,160 +323,168 @@ JSON Response:"""
         ]
         validated['conversation_flow'] = parsed_json.get('conversation_flow', 'standard_linear')
         if validated['conversation_flow'] not in flow_options:
+            logger.debug(f"Invalid 'conversation_flow' ('{validated['conversation_flow']}'). Defaulting.")
             validated['conversation_flow'] = 'standard_linear'
         
         channel_options = ["email", "live_chat", "phone_call", "video_call", "in_person", "sms", "social_media"]
         validated['communication_channel'] = parsed_json.get('communication_channel', 'email')
         if validated['communication_channel'] not in channel_options:
+            logger.debug(f"Invalid 'communication_channel' ('{validated['communication_channel']}'). Defaulting.")
             validated['communication_channel'] = 'email'
         
-        # Array field for customer needs
         need_options = [
             "efficiency", "cost_reduction", "growth", "compliance", "integration",
             "usability", "reliability", "security", "support", "analytics"
         ]
         needs = parsed_json.get('primary_customer_needs', ['efficiency', 'cost_reduction'])
         if isinstance(needs, list):
-            validated['primary_customer_needs'] = [need for need in needs if need in need_options][:3]
+            validated['primary_customer_needs'] = [str(need) for need in needs if str(need) in need_options][:3]
         else:
             validated['primary_customer_needs'] = ['efficiency', 'cost_reduction']
         
-        if not validated['primary_customer_needs']:
+        if not validated['primary_customer_needs']: # Ensure it's not empty
             validated['primary_customer_needs'] = ['efficiency', 'cost_reduction']
         
         return validated
 
     def _get_fallback_metrics(self, history: List[Dict[str, str]], turn_number: int) -> Dict:
-        """Generate intelligent fallback metrics when LLM is not available."""
-        conversation_length = len(history)
+        """
+        Generate intelligent fallback metrics when LLM is not available or fails.
+        Customer engagement and sales effectiveness are set to neutral (0.5)
+        to prioritize reliance on embedding signals for these aspects in the PPO model.
+        """
+        logger.debug(
+            "Using fallback metrics. Customer engagement and sales effectiveness are set to neutral (0.5), "
+            "to prioritize reliance on embedding signals for these aspects when LLM is absent."
+        )
         
-        # Basic text analysis for fallbacks
-        customer_text = " ".join([msg['message'].lower() for msg in history if msg['speaker'] == 'customer'])
-        sales_text = " ".join([msg['message'].lower() for msg in history if msg['speaker'] == 'sales_rep'])
-        
-        # Intelligent fallback based on content analysis
+        # For the PPO model input, customer_engagement and sales_effectiveness are neutral.
+        # The PPO model will then need to rely more on the raw embedding to infer these aspects.
         engagement = 0.5
         effectiveness = 0.5
         
-        # Adjust based on obvious signals
-        if any(signal in customer_text for signal in ['buy', 'purchase', 'interested', 'yes', 'sounds good']):
-            engagement = min(0.8, engagement + 0.3)
-        
-        if any(obj in customer_text for obj in ['expensive', 'costly', 'not interested', 'no']):
-            engagement = max(0.2, engagement - 0.3)
-        
-        if any(poor in sales_text for poor in ['ok', 'sure', 'fine']) and len(sales_text) < 20:
-            effectiveness = max(0.2, effectiveness - 0.3)
-        
+        # customer_text is still needed for other fallback metrics (e.g., objection_count, pricing_sensitivity)
+        # that are part of the detailed output but not the PPO model's core state vector's metric components.
+        customer_text = " ".join([msg['message'].lower() for msg in history if msg['speaker'] == 'customer'])
+        # sales_text is no longer needed as its only use was for the old 'effectiveness' heuristic.
+
         return {
-            'customer_engagement': engagement,
-            'sales_effectiveness': effectiveness,
+            'customer_engagement': engagement,  # Always 0.5 in this fallback scenario for PPO input
+            'sales_effectiveness': effectiveness,  # Always 0.5 in this fallback scenario for PPO input
+            
+            # Other metrics (primarily for detailed output, not core PPO state vector metrics)
+            # retain their simple default/keyword fallbacks.
             'conversation_style': 'direct_professional',
             'conversation_flow': 'standard_linear',
             'communication_channel': 'email',
             'primary_customer_needs': ['efficiency', 'cost_reduction'],
-            'engagement_trend': 0.5,
-            'objection_count': 0.3 if any(obj in customer_text for obj in ['expensive', 'costly']) else 0.1,
-            'value_proposition_mentions': 0.4,
-            'technical_depth': 0.3,
-            'urgency_level': 0.2,
-            'competitive_context': 0.1,
-            'pricing_sensitivity': 0.4 if 'price' in customer_text or 'cost' in customer_text else 0.2,
-            'decision_authority_signals': 0.5
+            'engagement_trend': 0.5, # Neutral trend
+            'objection_count': 0.4 if any(obj in customer_text for obj in ['expensive', 'costly', 'concern', 'budget', 'not interested', 'problem', 'issue']) else 0.1,
+            'value_proposition_mentions': 0.4, # Generic default
+            'technical_depth': 0.3, # Generic default
+            'urgency_level': 0.2, # Generic default
+            'competitive_context': 0.1, # Generic default
+            'pricing_sensitivity': 0.5 if any(kw in customer_text for kw in ['price', 'cost', 'budget', 'expensive']) else 0.2,
+            'decision_authority_signals': 0.5 # Neutral
         }
 
-    def _generate_probability_trajectory(self, history: List[Dict[str, str]], comprehensive_metrics: Dict) -> Dict[int, float]:
+    def _generate_probability_trajectory(self, history: List[Dict[str, str]], base_metrics: Dict) -> Dict[int, float]:
         """Generate realistic probability trajectory using comprehensive LLM metrics."""
         trajectory = {}
         num_turns = len(history)
         
         if num_turns == 0:
-            return {0: 0.5}
+            return {0: 0.5} # Default for empty history
         
-        # Use comprehensive metrics for trajectory generation
-        engagement = comprehensive_metrics.get('customer_engagement', 0.5)
-        effectiveness = comprehensive_metrics.get('sales_effectiveness', 0.5)
-        engagement_trend = comprehensive_metrics.get('engagement_trend', 0.5)
-        objection_count = comprehensive_metrics.get('objection_count', 0.3)
+        engagement = base_metrics.get('customer_engagement', 0.5)
+        effectiveness = base_metrics.get('sales_effectiveness', 0.5)
+        engagement_trend = base_metrics.get('engagement_trend', 0.5) # 0-1 scale
+        objection_level = base_metrics.get('objection_count', 0.3) # 0-1 scale
         
-        # More sophisticated trajectory calculation
-        base_prob = 0.2
-        trend_factor = (engagement * 0.5 + effectiveness * 0.3 + engagement_trend * 0.2)
-        
-        # Adjust for objections
-        objection_penalty = objection_count * 0.3
+        current_prob = 0.15 # Initial base probability
         
         for i in range(num_turns):
-            progress = i / max(1, num_turns - 1)
+            turn_factor = 0.0
             
-            # Calculate probability with sophisticated weighting
-            prob = base_prob + (trend_factor - objection_penalty - 0.4) * progress * 1.2
+            # Engagement impact
+            turn_factor += (engagement - 0.5) * 0.2 # Max +/- 0.1
+            # Sales effectiveness impact
+            turn_factor += (effectiveness - 0.5) * 0.15 # Max +/- 0.075
+            # Objection impact (negative)
+            turn_factor -= objection_level * 0.25 # Max -0.25
             
-            # Apply engagement trend
-            if engagement_trend > 0.7:
-                prob += progress * 0.2  # Increasing engagement boosts trajectory
-            elif engagement_trend < 0.3:
-                prob -= progress * 0.15  # Decreasing engagement hurts trajectory
+            # Apply trend factor progressively
+            # Trend: 0-0.3 (declining), 0.4-0.6 (stable), 0.7-1.0 (increasing)
+            if engagement_trend > 0.7: # Increasing
+                turn_factor += 0.05 * (i / max(1, num_turns -1))
+            elif engagement_trend < 0.3: # Declining
+                turn_factor -= 0.05 * (i / max(1, num_turns -1))
+
+            # Max change per turn to avoid wild swings
+            max_delta = 0.15 
+            delta = np.clip(turn_factor, -max_delta, max_delta)
             
-            # Smooth progression with some realistic variation
-            if i > 0:
-                prev_prob = trajectory[i-1]
-                max_change = 0.2
-                prob = max(prev_prob - max_change, min(prev_prob + max_change, prob))
+            current_prob += delta
             
-            # Add small realistic noise
-            noise = random.uniform(-0.02, 0.02)
-            prob = np.clip(prob + noise, 0.05, 0.95)
+            # Add small random variation for realism
+            current_prob += random.uniform(-0.03, 0.03)
             
-            trajectory[i] = round(prob, 4)
-        
+            current_prob = np.clip(current_prob, 0.05, 0.95) # Bound probability
+            trajectory[i] = round(current_prob, 4)
+            
+            # Slightly adjust base metrics for next turn simulation (not strictly needed but can make trajectory smoother)
+            # This is a simplified internal simulation for trajectory, not changing the actual metrics for PPO
+            engagement = np.clip(engagement + (engagement_trend - 0.5) * 0.05, 0, 1)
+
+
         return trajectory
 
-    def analyze_metrics(self, history: List[Dict[str, str]], turn_number: int) -> Dict[str, float]:
+    def analyze_metrics(self, history: List[Dict[str, str]], turn_number: int) -> Dict[str, Any]:
         conversation_length = float(len(history))
-        progress_metric = min(1.0, turn_number / self.MAX_TURNS_REFERENCE)
+        progress_metric = min(1.0, turn_number / self.MAX_TURNS_REFERENCE) if self.MAX_TURNS_REFERENCE > 0 else 0.0
         
-        # Get comprehensive metrics from LLM
-        comprehensive_metrics = self._get_comprehensive_metrics_from_llm(history, turn_number)
+        # Get comprehensive metrics from LLM (or fallback) and the success flag
+        base_metrics, llm_data_was_successfully_used = self._get_comprehensive_metrics_from_llm(history, turn_number)
         
-        # Generate sophisticated probability trajectory
-        probability_trajectory = self._generate_probability_trajectory(history, comprehensive_metrics)
+        # Generate sophisticated probability trajectory using the obtained base_metrics
+        probability_trajectory = self._generate_probability_trajectory(history, base_metrics)
         
         # Build final metrics dictionary combining all sources
-        metrics = {
-            # Core metrics (required by PPO model)
-            'customer_engagement': comprehensive_metrics['customer_engagement'],
-            'sales_effectiveness': comprehensive_metrics['sales_effectiveness'],
+        final_metrics = {
+            # Core metrics (from LLM or fallback, used by PPO model)
+            'customer_engagement': base_metrics['customer_engagement'],
+            'sales_effectiveness': base_metrics['sales_effectiveness'],
+            
+            # Objective core metrics (calculated, used by PPO model)
             'conversation_length': conversation_length,
             'outcome': 0.5,  # Standard placeholder for inference
             'progress': progress_metric,
             
-            # Enhanced conversation characteristics
-            'conversation_style': comprehensive_metrics['conversation_style'],
-            'conversation_flow': comprehensive_metrics['conversation_flow'],
-            'communication_channel': comprehensive_metrics['communication_channel'],
-            'primary_customer_needs': comprehensive_metrics['primary_customer_needs'],
+            # Enhanced conversation characteristics (from LLM or fallback)
+            'conversation_style': base_metrics['conversation_style'],
+            'conversation_flow': base_metrics['conversation_flow'],
+            'communication_channel': base_metrics['communication_channel'],
+            'primary_customer_needs': base_metrics['primary_customer_needs'],
             'probability_trajectory': probability_trajectory,
             
-            # Sophisticated behavioral analytics (all LLM-derived)
-            'engagement_trend': comprehensive_metrics['engagement_trend'],
-            'objection_count': comprehensive_metrics['objection_count'],
-            'value_proposition_mentions': comprehensive_metrics['value_proposition_mentions'],
-            'technical_depth': comprehensive_metrics['technical_depth'],
-            'urgency_level': comprehensive_metrics['urgency_level'],
-            'competitive_context': comprehensive_metrics['competitive_context'],
-            'pricing_sensitivity': comprehensive_metrics['pricing_sensitivity'],
-            'decision_authority_signals': comprehensive_metrics['decision_authority_signals']
+            # Sophisticated behavioral analytics (from LLM or fallback)
+            'engagement_trend': base_metrics['engagement_trend'],
+            'objection_count': base_metrics['objection_count'],
+            'value_proposition_mentions': base_metrics['value_proposition_mentions'],
+            'technical_depth': base_metrics['technical_depth'],
+            'urgency_level': base_metrics['urgency_level'],
+            'competitive_context': base_metrics['competitive_context'],
+            'pricing_sensitivity': base_metrics['pricing_sensitivity'],
+            'decision_authority_signals': base_metrics['decision_authority_signals']
         }
         
-        llm_derived = self.llm is not None
-        logger.info(f"Comprehensive Metrics Analysis (LLM derived: {llm_derived}) - "
-                   f"Engagement: {metrics['customer_engagement']:.2f}, "
-                   f"Effectiveness: {metrics['sales_effectiveness']:.2f}, "
-                   f"Style: {metrics['conversation_style']}, "
-                   f"Flow: {metrics['conversation_flow']}")
+        logger.info(f"Comprehensive Metrics Analysis (LLM data successfully used: {llm_data_was_successfully_used}) - "
+                   f"Engagement: {final_metrics['customer_engagement']:.2f}, "
+                   f"Effectiveness: {final_metrics['sales_effectiveness']:.2f}, "
+                   f"Style: {final_metrics['conversation_style']}, "
+                   f"Flow: {final_metrics['conversation_flow']}")
         
-        return metrics
+        return final_metrics
 
     def generate_response(
         self,
@@ -537,7 +543,7 @@ class AzureEmbeddings:
         self.deployment_name = deployment 
         self.expected_dim = expected_dim
         self.native_dim = 0 
-        self.MAX_TURNS_REFERENCE = 20
+        self.MAX_TURNS_REFERENCE = 1000
 
         try:
             logger.info(f"Testing Azure OpenAI connection with embedding deployment: {self.deployment_name}")
@@ -574,50 +580,62 @@ class AzureEmbeddings:
             embedding = np.zeros(self.expected_dim, dtype=np.float32)
             embedding[:embedding_native.shape[0]] = embedding_native 
 
-        progress = min(1.0, turn_number / self.MAX_TURNS_REFERENCE)
+        progress = min(1.0, turn_number / self.MAX_TURNS_REFERENCE) if self.MAX_TURNS_REFERENCE > 0 else 0.0
         scaled_embedding = embedding * (0.6 + 0.4 * progress)
         return scaled_embedding.astype(np.float32)
 
-    def analyze_metrics(self, history: List[Dict[str, str]], turn_number: int) -> Dict[str, float]:
+    def analyze_metrics(self, history: List[Dict[str, str]], turn_number: int) -> Dict[str, Any]:
         logger.info("AzureEmbeddings using basic enhanced metrics. For full LLM analysis, use OpenSource backend with LLM.")
         
         conversation_length = float(len(history))
-        progress_metric = min(1.0, turn_number / self.MAX_TURNS_REFERENCE)
+        progress_metric = min(1.0, turn_number / self.MAX_TURNS_REFERENCE) if self.MAX_TURNS_REFERENCE > 0 else 0.0
         
-        # Basic content analysis for Azure backend
         customer_text = " ".join([msg['message'].lower() for msg in history if msg['speaker'] == 'customer'])
         
-        engagement = 0.5
+        # For Azure backend (no local LLM for deep metric analysis), engagement and effectiveness
+        # are based on simpler heuristics as the primary PPO model input metrics.
+        engagement = 0.5 
         effectiveness = 0.5
         
-        # Basic signal detection
-        if any(signal in customer_text for signal in ['buy', 'purchase', 'interested']):
+        if any(signal in customer_text for signal in ['buy', 'purchase', 'interested', 'yes', 'great', 'sounds good']):
             engagement = 0.7
-        if any(obj in customer_text for obj in ['expensive', 'costly', 'not interested']):
+        if any(obj in customer_text for obj in ['expensive', 'costly', 'not interested', 'no', 'concern', 'problem']):
             engagement = 0.3
         
+        # Simplified probability trajectory for Azure (no LLM for deep analysis)
+        prob_trajectory = {}
+        current_prob_azure = 0.3 
+        for i in range(len(history)):
+            factor = 0.0
+            if history[i]['speaker'] == 'customer':
+                if any(s in history[i]['message'].lower() for s in ['interested', 'yes', 'great']): factor += 0.1
+                if any(s in history[i]['message'].lower() for s in ['expensive', 'problem', 'no']): factor -= 0.1
+            elif history[i]['speaker'] == 'sales_rep':
+                 if len(history[i]['message']) > 50 : factor += 0.05 # Basic effectiveness proxy
+            current_prob_azure = np.clip(current_prob_azure + factor + random.uniform(-0.02, 0.02), 0.05, 0.95)
+            prob_trajectory[i] = round(current_prob_azure, 4)
+
+
         return {
-            'customer_engagement': engagement,
-            'sales_effectiveness': effectiveness,
+            'customer_engagement': engagement, # Heuristic-based for Azure
+            'sales_effectiveness': effectiveness, # Neutral or simple heuristic for Azure
             'conversation_length': conversation_length,
             'outcome': 0.5, 
             'progress': progress_metric,
             
-            # Basic versions of enhanced metrics
             'conversation_style': 'direct_professional',
             'conversation_flow': 'standard_linear',
             'communication_channel': 'email',
             'primary_customer_needs': ['efficiency', 'cost_reduction'],
-            'probability_trajectory': {i: 0.5 for i in range(len(history))},
+            'probability_trajectory': prob_trajectory, 
             
-            # Default derived metrics
             'engagement_trend': 0.5,
-            'objection_count': 0.3 if any(obj in customer_text for obj in ['expensive', 'costly']) else 0.1,
+            'objection_count': 0.3 if any(obj in customer_text for obj in ['expensive', 'costly', 'concern', 'not interested']) else 0.1,
             'value_proposition_mentions': 0.3,
             'technical_depth': 0.4,
             'urgency_level': 0.2,
             'competitive_context': 0.1,
-            'pricing_sensitivity': 0.4 if 'price' in customer_text or 'cost' in customer_text else 0.2,
+            'pricing_sensitivity': 0.4 if any(kw in customer_text for kw in ['price', 'cost', 'budget']) else 0.2,
             'decision_authority_signals': 0.5
         }
 

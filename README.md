@@ -1,47 +1,65 @@
-# DeepMost - Sales Conversation Analysis
+# DeepMost - Advanced Sales Conversation Analysis
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyPI version](https://badge.fury.io/py/deepmost.svg)](https://badge.fury.io/py/deepmost)
 
-A powerful Python package for analyzing sales conversations and tracking conversion probability evolution using advanced reinforcement learning. **DeepMost specializes in turn-by-turn conversation analysis**, showing you exactly how each message impacts your sales success.
+A powerful Python package for analyzing sales conversations and predicting conversion probability using advanced reinforcement learning. **DeepMost specializes in turn-by-turn conversation analysis**, showing you exactly how each message impacts your sales success.
 
 ## 🚀 Key Features
 
 - **Turn-by-Turn Conversation Analysis**: Track how conversion probability evolves with each message exchange
 - **Advanced PPO Reinforcement Learning**: Trained on real sales conversations for accurate predictions
-- **Dynamic LLM-Powered Metrics**: Uses GGUF models to analyze customer engagement and sales effectiveness in real-time
+- **Dual Backend Support**: Choose between open-source (HuggingFace + GGUF) or Azure OpenAI backends
+- **Dynamic LLM-Powered Metrics**: Real-time analysis of customer engagement and sales effectiveness
 - **Sales Training & Coaching**: Identify which conversation elements increase or decrease conversion probability
 - **A/B Testing Sales Scripts**: Compare different approaches and optimize your sales methodology
 - **Real-time Sales Assistance**: Get insights during live conversations to guide next steps
-- **GPU Acceleration**: Full CUDA/Metal support for fast analysis
-- **Open-Source Backend**: Leverages HuggingFace models and local GGUF LLMs
+- **GPU Acceleration**: Full CUDA/Metal support for fast analysis (open-source backend)
+- **Enterprise Ready**: Azure OpenAI integration for enterprise deployments
 
 ## 📦 Installation
 
-Requires **Python 3.11** (does not support other versions).
+### Requirements
+- **Open-Source Backend**: Python 3.11+ (no other versions supported)
+- **Azure Backend**: Python 3.10+ 
 
-### Recommended Installation (GPU Support)
-For best performance and LLM-powered metrics:
+### Open-Source Installation (Recommended for Development)
 
+**Basic Installation:**
+```bash
+pip install deepmost
+```
+
+**With GPU Support (Recommended):**
 ```bash
 pip install deepmost[gpu]
 ```
 
-### Manual GPU Setup (If automatic fails)
+**Manual GPU Setup (If automatic installation fails):**
 
-**For NVIDIA CUDA:**
+*For NVIDIA CUDA:*
 ```bash
 CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir
 pip install deepmost
 ```
 
-**For Apple Metal (M1/M2/M3):**
+*For Apple Metal (M1/M2/M3):*
 ```bash
 CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir
 pip install deepmost
 ```
 
+### Azure OpenAI Installation (Enterprise)
+
+```bash
+pip install deepmost
+```
+
+*Note: Azure backend doesn't require GPU compilation as it uses cloud-based embeddings and models.*
+
 ### Verify Installation
+
 ```python
 import torch
 from deepmost import sales
@@ -51,9 +69,10 @@ info = sales.get_system_info()
 print(f"Supported Backends: {info['supported_backends']}")
 ```
 
-## 🎯 Quick Start - Turn-by-Turn Analysis
+## 🎯 Quick Start
 
-### Simple Analysis (Recommended Usage)
+### Simple Turn-by-Turn Analysis (Open-Source)
+
 ```python
 from deepmost import sales
 
@@ -81,33 +100,158 @@ Final Conversion Probability: 52.34%
 Final Status: 🟢 High
 ```
 
-### Detailed Analysis with Agent
+### Azure OpenAI Backend Usage
+
 ```python
 from deepmost import sales
 
-# Initialize agent with LLM for best accuracy
-agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
+# Initialize with Azure OpenAI credentials
+agent = sales.Agent(
+    azure_api_key="your-azure-api-key",
+    azure_endpoint="https://your-resource.openai.azure.com",
+    azure_deployment="your-embedding-deployment-name"
+)
 
 conversation = [
     {"speaker": "customer", "message": "I've been researching CRM solutions for our team"},
     {"speaker": "sales_rep", "message": "Great! What's driving your search for a new CRM?"},
     {"speaker": "customer", "message": "Our current system lacks automation and good reporting"},
-    {"speaker": "sales_rep", "message": "Those are exactly the areas where our platform excels. Our automation saves teams 15+ hours per week."}
+    {"speaker": "sales_rep", "message": "Those are exactly the areas where our platform excels."}
 ]
 
 # Get detailed turn-by-turn analysis
-progression_results = agent.analyze_conversation_progression(conversation, print_results=True)
-
-# Access detailed metrics for each turn
-for turn_data in progression_results:
-    print(f"\nTurn {turn_data['turn']}: {turn_data['probability']:.3f}")
-    print(f"  Customer Engagement: {turn_data['metrics']['customer_engagement']:.2f}")
-    print(f"  Sales Effectiveness: {turn_data['metrics']['sales_effectiveness']:.2f}")
+results = agent.analyze_conversation_progression(conversation, print_results=True)
 ```
 
-## 📊 Understanding Turn-by-Turn Results
+## 🔧 Backend Configuration
 
-Each turn analysis provides:
+### Open-Source Backend (HuggingFace + GGUF)
+
+**Basic Configuration:**
+```python
+from deepmost import sales
+
+agent = sales.Agent(
+    # Embedding model from HuggingFace
+    embedding_model="BAAI/bge-m3",  # Default: 1024-dim embeddings
+    
+    # GGUF LLM for comprehensive metrics (highly recommended)
+    llm_model="unsloth/Qwen3-4B-GGUF",  # Recommended balance of quality vs performance
+    
+    # Performance options
+    use_gpu=True,  # Enable GPU acceleration
+    auto_download=True  # Auto-download models if not found
+)
+```
+
+**Recommended GGUF Models:**
+```python
+# Balanced quality vs performance (recommended)
+agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
+agent = sales.Agent(llm_model="unsloth/Llama-3.2-3B-Instruct-GGUF")
+
+# Higher quality (requires more resources)
+agent = sales.Agent(llm_model="unsloth/Llama-3.1-8B-Instruct-GGUF")
+
+# Smaller models for limited resources
+agent = sales.Agent(llm_model="microsoft/Phi-3-mini-4k-instruct-gguf")
+```
+
+**Custom PPO Models:**
+```python
+# Use your own trained PPO model
+agent = sales.Agent(
+    model_path="/path/to/your/ppo_model.zip",
+    embedding_model="BAAI/bge-m3",  # Must match training setup
+    llm_model="unsloth/Qwen3-4B-GGUF"
+)
+```
+
+### Azure OpenAI Backend (Enterprise)
+
+**Basic Azure Configuration:**
+```python
+from deepmost import sales
+
+agent = sales.Agent(
+    # Azure OpenAI credentials
+    azure_api_key="your-azure-openai-api-key",
+    azure_endpoint="https://your-resource.openai.azure.com",
+    azure_deployment="your-embedding-deployment",  # e.g., "text-embedding-ada-002"
+    
+    # Optional: specify API version
+    # azure_api_version="2023-12-01-preview"  # Default
+)
+```
+
+**Azure Setup Requirements:**
+
+1. **Azure OpenAI Resource**: Create an Azure OpenAI resource in your subscription
+2. **Embedding Deployment**: Deploy an embedding model (recommended: `text-embedding-ada-002`)
+3. **API Key & Endpoint**: Get your API key and endpoint from Azure portal
+
+**Example Azure Deployment Setup:**
+```bash
+# Using Azure CLI to create embedding deployment
+az cognitiveservices account deployment create \
+  --resource-group "your-rg" \
+  --name "your-openai-resource" \
+  --deployment-name "text-embedding-ada-002" \
+  --model-name "text-embedding-ada-002" \
+  --model-version "2" \
+  --model-format "OpenAI" \
+  --scale-settings-scale-type "Standard"
+```
+
+**Advanced Azure Configuration:**
+```python
+agent = sales.Agent(
+    azure_api_key="your-api-key",
+    azure_endpoint="https://your-resource.openai.azure.com",
+    azure_deployment="text-embedding-ada-002",
+    azure_api_version="2023-12-01-preview",
+    
+    # Optional: Custom PPO model path
+    model_path="/path/to/azure-compatible-model.zip",
+    
+    # GPU not needed for Azure backend (cloud-based)
+    use_gpu=False
+)
+```
+
+**Environment Variable Setup (Recommended):**
+```python
+import os
+
+# Set environment variables
+os.environ["AZURE_OPENAI_API_KEY"] = "your-api-key"
+os.environ["AZURE_OPENAI_ENDPOINT"] = "https://your-resource.openai.azure.com"
+os.environ["AZURE_OPENAI_DEPLOYMENT"] = "text-embedding-ada-002"
+
+# Initialize with environment variables
+agent = sales.Agent(
+    azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT")
+)
+```
+
+### Backend Comparison
+
+| Feature | Open-Source Backend | Azure Backend |
+|---------|-------------------|---------------|
+| **Cost** | Free (local compute) | Pay-per-API-call |
+| **Setup** | More complex (GPU setup) | Simpler (cloud-based) |
+| **Privacy** | Complete data privacy | Data sent to Azure |
+| **Performance** | Depends on local hardware | Consistent cloud performance |
+| **LLM Analysis** | Full GGUF model analysis | Basic heuristic analysis |
+| **Scalability** | Limited by local resources | Highly scalable |
+| **Offline** | Works offline | Requires internet |
+| **Enterprise** | Good for development | Ideal for production |
+
+## 📊 Understanding Results
+
+### Turn-by-Turn Analysis Output
 
 ```python
 {
@@ -117,10 +261,14 @@ Each turn analysis provides:
     'probability': 0.3456,              # Conversion probability after this turn
     'status': '🟠 Low',                 # Visual status indicator
     'metrics': {                        # Detailed analysis metrics
-        'customer_engagement': 0.6,      # LLM-derived engagement score
-        'sales_effectiveness': 0.4,      # LLM-derived effectiveness score
+        'customer_engagement': 0.6,      # Customer engagement score (0-1)
+        'sales_effectiveness': 0.4,      # Sales rep effectiveness score (0-1)
         'conversation_length': 3.0,      # Number of messages so far
-        'progress': 0.15                 # Conversation progress indicator
+        'progress': 0.15,                # Conversation progress indicator
+        'conversation_style': 'direct_professional',
+        'conversation_flow': 'standard_linear',
+        'primary_customer_needs': ['efficiency', 'cost_reduction']
+        # ... additional metrics
     }
 }
 ```
@@ -131,12 +279,49 @@ Each turn analysis provides:
 - 🟠 **Low** (≥30%): Needs improvement - re-engage or discover deeper needs
 - 🔴 **Very Low** (<30%): Poor fit or major obstacles - consider re-qualifying
 
+### Comprehensive Metrics (Open-Source Backend with LLM)
+
+When using the open-source backend with a GGUF LLM model, you get enhanced metrics:
+
+```python
+{
+    # Core PPO Model Metrics
+    'customer_engagement': 0.7,         # LLM-analyzed engagement level
+    'sales_effectiveness': 0.6,         # LLM-analyzed sales approach quality
+    'conversation_length': 5.0,
+    'progress': 0.25,
+    
+    # Enhanced Conversation Analysis
+    'conversation_style': 'consultative_advisory',
+    'conversation_flow': 'gradual_discovery', 
+    'communication_channel': 'video_call',
+    'primary_customer_needs': ['efficiency', 'integration', 'analytics'],
+    
+    # Advanced Behavioral Analytics
+    'engagement_trend': 0.8,            # Increasing engagement
+    'objection_count': 0.2,             # Low objection level
+    'value_proposition_mentions': 0.7,   # Strong value communication
+    'technical_depth': 0.6,             # Moderately technical discussion
+    'urgency_level': 0.4,               # Some time considerations
+    'competitive_context': 0.3,         # Limited competitive mentions
+    'pricing_sensitivity': 0.5,         # Moderate price focus
+    'decision_authority_signals': 0.8,   # High decision-making authority
+    
+    # Probability Evolution
+    'probability_trajectory': {0: 0.15, 1: 0.28, 2: 0.35, 3: 0.42, 4: 0.51}
+}
+```
+
 ## 💡 Practical Use Cases
 
 ### 1. Sales Training & Coaching
-Analyze real conversations to identify what works and what doesn't:
+
+Analyze real conversations to identify what works:
 
 ```python
+from deepmost import sales
+
+# Training conversation example
 training_conversation = [
     {"speaker": "customer", "message": "I'm comparing different CRM vendors"},
     {"speaker": "sales_rep", "message": "Smart approach! What's most important to you in a CRM?"},
@@ -146,6 +331,7 @@ training_conversation = [
     {"speaker": "sales_rep", "message": "Perfect! We have native integrations for all three. Let me show you how seamless the data sync is."}
 ]
 
+agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
 results = agent.analyze_conversation_progression(training_conversation)
 
 # Identify which turns increased/decreased probability
@@ -158,6 +344,7 @@ for i, result in enumerate(results[1:], 1):
 ```
 
 ### 2. A/B Testing Sales Scripts
+
 Compare different response strategies:
 
 ```python
@@ -172,14 +359,18 @@ script_b_conversation = [
     "I'd love to get you accurate pricing! What's your team size and main requirements?"
 ]
 
-results_a = sales.analyze_progression(script_a_conversation, llm_model="unsloth/Qwen3-4B-GGUF")
-results_b = sales.analyze_progression(script_b_conversation, llm_model="unsloth/Qwen3-4B-GGUF")
+# Test both scripts
+agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
+results_a = agent.analyze_conversation_progression(script_a_conversation, print_results=False)
+results_b = agent.analyze_conversation_progression(script_b_conversation, print_results=False)
 
 print(f"Script A final probability: {results_a[-1]['probability']:.2%}")
 print(f"Script B final probability: {results_b[-1]['probability']:.2%}")
+print(f"Improvement: {(results_b[-1]['probability'] - results_a[-1]['probability']):.2%}")
 ```
 
 ### 3. Real-time Sales Assistance
+
 Use during live conversations for guidance:
 
 ```python
@@ -205,92 +396,81 @@ elif current_metrics['sales_effectiveness'] < 0.5:
     print("💡 Suggestion: Refine your approach. Focus on customer needs and value proposition.")
 ```
 
-### 4. Conversation Trend Visualization
-```python
-import matplotlib.pyplot as plt
+### 4. Enterprise Integration with Azure
 
-# Analyze multiple scenarios
-scenarios = {
-    "Successful Sale": [
-        "I need a CRM for my team",
-        "What size team and main challenges?", 
-        "10 people, need better lead tracking",
-        "Our Pro plan is perfect for that. Here's how it works...",
-        "Looks great! What's the next step?"
-    ],
-    "Price Objection": [
-        "I need a CRM for my team",
-        "Our premium solution is $99 per user monthly",
-        "That's way too expensive",
-        "Let me show you the ROI calculation...",
-        "Still too much for our budget"
-    ]
-}
+For enterprise deployments with Azure OpenAI:
+
+```python
+import os
+from deepmost import sales
+
+# Enterprise configuration with environment variables
+agent = sales.Agent(
+    azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT")
+)
+
+def analyze_sales_call(conversation_data):
+    """Analyze a sales call for enterprise reporting"""
+    results = agent.analyze_conversation_progression(
+        conversation_data, 
+        print_results=False
+    )
+    
+    return {
+        'final_probability': results[-1]['probability'],
+        'status': results[-1]['status'],
+        'key_metrics': {
+            'engagement': results[-1]['metrics']['customer_engagement'],
+            'effectiveness': results[-1]['metrics']['sales_effectiveness'],
+            'objections': results[-1]['metrics']['objection_count']
+        },
+        'recommended_actions': results[-1]['metrics'].get('suggested_action', 'Continue building rapport')
+    }
+
+# Use in production
+call_analysis = analyze_sales_call(your_conversation_data)
+```
+
+### 5. Batch Processing for Analytics
+
+Process multiple conversations for insights:
+
+```python
+conversations = [
+    # Load your conversation datasets
+    {"id": "conv_1", "messages": [...]},
+    {"id": "conv_2", "messages": [...]},
+    # ... more conversations
+]
 
 agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
+results = []
 
-plt.figure(figsize=(12, 6))
-for scenario_name, conversation in scenarios.items():
-    results = agent.analyze_conversation_progression(conversation, print_results=False)
-    probabilities = [r['probability'] for r in results]
-    turns = list(range(1, len(probabilities) + 1))
+for conv in conversations:
+    analysis = agent.analyze_conversation_progression(
+        conv["messages"], 
+        conversation_id=conv["id"],
+        print_results=False
+    )
     
-    plt.plot(turns, probabilities, marker='o', linewidth=2, label=scenario_name)
+    results.append({
+        'conversation_id': conv["id"],
+        'final_probability': analysis[-1]['probability'],
+        'turn_count': len(analysis),
+        'avg_engagement': np.mean([turn['metrics']['customer_engagement'] for turn in analysis]),
+        'avg_effectiveness': np.mean([turn['metrics']['sales_effectiveness'] for turn in analysis])
+    })
 
-plt.xlabel('Conversation Turn')
-plt.ylabel('Conversion Probability')
-plt.title('Conversion Probability Evolution by Scenario')
-plt.legend()
-plt.grid(True, alpha=0.3)
-plt.ylim(0, 1)
-plt.show()
+# Analyze results
+import pandas as pd
+df = pd.DataFrame(results)
+print(f"Average conversion probability: {df['final_probability'].mean():.2%}")
+print(f"High-performing conversations (>50%): {(df['final_probability'] > 0.5).sum()}")
 ```
 
-## 🔧 Configuration & Models
-
-### Recommended LLM Models
-For best accuracy with dynamic metrics:
-
-```python
-# Recommended models (balance of quality vs performance)
-agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")          # Recommended
-agent = sales.Agent(llm_model="unsloth/Llama-3.2-3B-Instruct-GGUF")  # Alternative
-
-# For higher quality (requires more resources)
-agent = sales.Agent(llm_model="unsloth/Llama-3.1-8B-Instruct-GGUF")
-
-
-```
-
-### Advanced Configuration
-```python
-agent = sales.Agent(
-    # PPO Model (auto-downloads if not specified)
-    model_path="/path/to/custom/ppo_model.zip",  # Optional custom model
-    auto_download=True,
-    
-    # Embeddings (for conversation understanding)
-    embedding_model="BAAI/bge-m3",  # Default: 1024-dim embeddings
-    
-    # LLM for dynamic metrics (highly recommended)
-    llm_model="unsloth/Qwen3-4B-GGUF",
-    
-    # Performance
-    use_gpu=True  # Enable GPU acceleration
-)
-```
-
-### Using Custom PPO Models
-```python
-# If you've trained your own PPO model
-agent = sales.Agent(
-    model_path="/path/to/your/ppo_model.zip",
-    embedding_model="BAAI/bge-m3",  # Must match your training setup
-    llm_model="unsloth/Qwen3-4B-GGUF"
-)
-```
-
-## 📝 Conversation Format
+## 📝 Conversation Formats
 
 DeepMost accepts multiple conversation formats:
 
@@ -324,9 +504,9 @@ conversation = [
 
 ## 🛠️ Troubleshooting
 
-### GPU Installation Issues
+### Open-Source Backend Issues
 
-**Check GPU Support:**
+**GPU Installation Problems:**
 ```python
 import torch
 print(f"CUDA Available: {torch.cuda.is_available()}")
@@ -356,15 +536,7 @@ CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python --upgrade --force-rein
 pip install deepmost
 ```
 
-### LLM Model Issues
-
-**Model Download Problems:**
-- Models are cached in `~/.cache/huggingface/hub`
-- Ensure stable internet connection and sufficient disk space
-- Try smaller models if memory limited
-
-
-**Debugging LLM Issues:**
+**LLM Model Issues:**
 ```python
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -373,46 +545,202 @@ logging.basicConfig(level=logging.DEBUG)
 agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
 ```
 
-### Performance Optimization
+### Azure Backend Issues
+
+**Authentication Problems:**
+```python
+# Test Azure connection
+try:
+    from openai import AzureOpenAI
+    
+    client = AzureOpenAI(
+        api_key="your-api-key",
+        azure_endpoint="https://your-resource.openai.azure.com",
+        api_version="2023-12-01-preview"
+    )
+    
+    # Test embedding call
+    response = client.embeddings.create(
+        input="test",
+        model="your-deployment-name"  # Your embedding deployment
+    )
+    print("✅ Azure OpenAI connection successful")
+    
+except Exception as e:
+    print(f"❌ Azure connection failed: {e}")
+```
+
+**Common Azure Issues:**
+1. **Invalid API Key**: Check your Azure OpenAI resource API keys
+2. **Wrong Endpoint**: Ensure endpoint format: `https://your-resource.openai.azure.com`
+3. **Deployment Not Found**: Verify your embedding deployment name exists
+4. **Quota Exceeded**: Check your Azure OpenAI usage quotas
+5. **Region Issues**: Ensure your deployment region supports the embedding model
+
+**Azure Configuration Validation:**
+```python
+def validate_azure_config():
+    required_vars = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
+    missing = [var for var in required_vars if not os.getenv(var)]
+    
+    if missing:
+        print(f"❌ Missing environment variables: {missing}")
+        return False
+    
+    print("✅ All required Azure environment variables set")
+    return True
+
+validate_azure_config()
+```
+
+## 📈 Performance Optimization
+
+### Open-Source Backend
 
 **Best Practices:**
 1. **Reuse Agent**: Initialize once, use multiple times
 2. **GPU Memory**: Monitor with `nvidia-smi` (CUDA) or Activity Monitor (Metal)
-3. **Batch Analysis**: Process multiple conversations efficiently
-4. **Model Size**: Balance quality vs. performance needs
+3. **Model Size**: Balance quality vs. performance needs
+4. **Batch Processing**: Process multiple conversations efficiently
 
 **Memory Management:**
 ```python
-# For limited GPU memory
+# For limited GPU memory, use smaller models
 agent = sales.Agent(
+    llm_model="microsoft/Phi-3-mini-4k-instruct-gguf",  # Smaller model
+    use_gpu=True
+)
+
+# Monitor GPU memory usage
+import torch
+if torch.cuda.is_available():
+    print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+    print(f"GPU Memory Allocated: {torch.cuda.memory_allocated() / 1e9:.1f} GB")
+```
+
+### Azure Backend
+
+**Cost Optimization:**
+```python
+# Batch multiple predictions to reduce API calls
+conversations_batch = [conv1, conv2, conv3, ...]
+
+# Process efficiently
+agent = sales.Agent(
+    azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT")
+)
+
+results = []
+for conv in conversations_batch:
+    result = agent.analyze_conversation_progression(conv, print_results=False)
+    results.append(result)
+```
+
+**Rate Limiting:**
+```python
+import time
+from typing import List
+
+def batch_analyze_with_rate_limit(agent, conversations: List, delay: float = 1.0):
+    """Analyze conversations with rate limiting for Azure API"""
+    results = []
+    
+    for i, conv in enumerate(conversations):
+        try:
+            result = agent.analyze_conversation_progression(conv, print_results=False)
+            results.append(result)
+            
+            # Rate limiting
+            if i < len(conversations) - 1:  # Don't delay after last item
+                time.sleep(delay)
+                
+        except Exception as e:
+            print(f"Error processing conversation {i}: {e}")
+            continue
+    
+    return results
+```
+
+## 🔄 Migration Between Backends
+
+### From Open-Source to Azure
+
+```python
+# Original open-source setup
+agent_os = sales.Agent(
     llm_model="unsloth/Qwen3-4B-GGUF",
     use_gpu=True
 )
 
+# Migrate to Azure
+agent_azure = sales.Agent(
+    azure_api_key="your-api-key",
+    azure_endpoint="https://your-resource.openai.azure.com",
+    azure_deployment="text-embedding-ada-002"
+)
 
+# Same conversation analysis API
+conversation = [...]  # Your conversation data
+results_os = agent_os.analyze_conversation_progression(conversation)
+results_azure = agent_azure.analyze_conversation_progression(conversation)
 ```
 
-## 📈 Performance Tips
+### Hybrid Approach
 
-1. **Initialize Once**: Create agent instance once and reuse for multiple analyses
-2. **Appropriate Model Size**: Use 3-4B parameter models for good balance of quality/speed
-3. **GPU Acceleration**: Enable GPU for 3-5x faster analysis
-4. **Batch Processing**: Analyze multiple conversations in sequence efficiently
-5. **Silent Mode**: Use `print_results=False` for programmatic processing
+```python
+def get_agent(use_azure: bool = False):
+    """Factory function for backend selection"""
+    if use_azure:
+        return sales.Agent(
+            azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT")
+        )
+    else:
+        return sales.Agent(
+            llm_model="unsloth/Qwen3-4B-GGUF",
+            use_gpu=True
+        )
+
+# Use based on environment or requirements
+agent = get_agent(use_azure=os.getenv("USE_AZURE_BACKEND", "false").lower() == "true")
+```
 
 ## 🤝 Contributing
 
 We welcome contributions! Focus areas:
-- New conversation analysis metrics
+- Enhanced conversation analysis metrics
+- Additional LLM model support  
 - Integration with popular sales tools
 - Performance optimizations
-- Additional LLM model support
+- Azure OpenAI enhancements
 
 ```bash
 git clone https://github.com/DeepMostInnovations/deepmost.git
 cd deepmost
 pip install -e .[dev]
 pytest tests/
+```
+
+### Development Setup
+
+```bash
+# Clone and setup development environment
+git clone https://github.com/DeepMostInnovations/deepmost.git
+cd deepmost
+
+# Install with development dependencies
+pip install -e .[dev]
+
+# Run tests
+pytest tests/ -v
+
+# Run code formatting
+black deepmost/
+isort deepmost/
+flake8 deepmost/
 ```
 
 ## 📄 License
@@ -422,18 +750,35 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 🙏 Acknowledgments
 
 - **PPO Training**: [Stable Baselines3](https://github.com/DLR-RM/stable-baselines3)
-- **Embeddings**: [Sentence Transformers](https://www.sbert.net/) 
+- **Embeddings**: [Sentence Transformers](https://www.sbert.net/) & [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service)
 - **LLM Support**: [llama-cpp-python](https://github.com/abetlen/llama-cpp-python)
+- **Models**: [HuggingFace](https://huggingface.co/) & [Unsloth](https://github.com/unslothai/unsloth)
 
 ## 📞 Support & Links
 
-- **Issues**: [GitHub Issues](https://github.com/DeepMostInnovations/deepmost/issues)
-- **PyPI**: [https://pypi.org/project/deepmost/](https://pypi.org/project/deepmost/)
-- **Models**: [https://huggingface.co/DeepMostInnovations](https://huggingface.co/DeepMostInnovations)
-- **Email**: support@deepmost.ai
+- **Documentation**: [https://deepmost.readthedocs.io/](https://deepmost.readthedocs.io/)
+- **GitHub Issues**: [https://github.com/DeepMostInnovations/deepmost/issues](https://github.com/DeepMostInnovations/deepmost/issues)
+- **PyPI Package**: [https://pypi.org/project/deepmost/](https://pypi.org/project/deepmost/)
+- **Model Repository**: [https://huggingface.co/DeepMostInnovations](https://huggingface.co/DeepMostInnovations)
+- **Email Support**: support@deepmostai.com
+
+## 🚀 Getting Started Checklist
+
+### For Development/Testing (Open-Source)
+- [ ] Install Python 3.11+
+- [ ] Run `pip install deepmost[gpu]`
+- [ ] Verify GPU setup with `torch.cuda.is_available()`
+- [ ] Test with simple conversation using `sales.analyze_progression()`
+
+### For Production/Enterprise (Azure)
+- [ ] Create Azure OpenAI resource
+- [ ] Deploy embedding model (text-embedding-ada-002 recommended)
+- [ ] Set environment variables for API credentials
+- [ ] Install DeepMost: `pip install deepmost`
+- [ ] Test Azure connection and run analysis
 
 ---
 
-**Focus on what matters: understanding how each conversation turn impacts your sales success.** 🎯
+**Transform your sales conversations into actionable insights. Start analyzing what drives conversions today!** 🎯
 
 Made with ❤️ by [DeepMost Innovations](https://www.deepmostai.com/)
