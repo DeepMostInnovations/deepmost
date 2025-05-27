@@ -1,30 +1,37 @@
-"""Main predictor class that handles both Azure and open-source backends"""
+"""Main predictor class that handles all three backends"""
 
 import os
 import logging
 import numpy as np
 import torch
-from typing import List, Dict, Optional, Any, Union, Tuple # CORRECTED: Added Tuple
+from typing import List, Dict, Optional, Any, Union, Tuple
 from stable_baselines3 import PPO
-from .embeddings import EmbeddingProvider, OpenSourceEmbeddings, AzureEmbeddings
+from .embeddings import EmbeddingProvider, OpenSourceEmbeddings, AzureEmbeddings, OpenAIEmbeddings
 from .utils import ConversationState 
 
 logger = logging.getLogger(__name__)
 
 
 class SalesPredictor:
-    """Unified predictor for sales conversion"""
+    """Unified predictor for sales conversion supporting three backends"""
 
     def __init__(
         self,
         model_path: str,
+        # Azure OpenAI parameters
         azure_api_key: Optional[str] = None,
         azure_endpoint: Optional[str] = None, 
-        azure_deployment: Optional[str] = None, 
-        azure_api_version: str = "2023-12-01-preview", 
+        azure_deployment: Optional[str] = None,
+        azure_chat_deployment: Optional[str] = None,
+        azure_api_version: str = "2024-10-21",
+        # Standard OpenAI parameters
+        openai_api_key: Optional[str] = None,
+        openai_embedding_model: str = "text-embedding-3-large",
+        openai_chat_model: Optional[str] = None,
+        # Open-source parameters
         embedding_model: str = "BAAI/bge-m3", 
-        use_gpu: bool = True,
-        llm_model: Optional[str] = None, 
+        llm_model: Optional[str] = None,
+        use_gpu: bool = True
     ):
         self.ppo_device = torch.device("cuda" if torch.cuda.is_available() and use_gpu else "cpu")
         logger.info(f"Using device: {self.ppo_device} for PPO model inference.")
@@ -61,18 +68,43 @@ class SalesPredictor:
             raise ValueError("Invalid PPO model observation space structure.")
         logger.info(f"PPO Model expects total_obs_dim: {total_obs_dim}, calculated expected_embedding_dim: {self.expected_embedding_dim}")
 
-        self.use_azure_embeddings = bool(azure_api_key and azure_endpoint and azure_deployment)
-
-        if self.use_azure_embeddings:
-            logger.info("Using Azure OpenAI embeddings.")
+        # Determine backend and initialize appropriate embedding provider
+        if openai_api_key:
+            logger.info("Using standard OpenAI embeddings and chat completions.")
+            if openai_chat_model:
+                logger.info(f"OpenAI chat completions enabled with model: {openai_chat_model}")
+            else:
+                logger.warning("No OpenAI chat model provided. LLM-powered metrics will use fallbacks.")
+            
+            try:
+                self.embedding_provider: EmbeddingProvider = OpenAIEmbeddings(
+                    api_key=openai_api_key,
+                    embedding_model=openai_embedding_model,
+                    chat_model=openai_chat_model,
+                    expected_dim=self.expected_embedding_dim
+                )
+                self.backend_type = "openai"
+            except Exception as e:
+                logger.error(f"Failed to initialize OpenAIEmbeddings: {e}")
+                raise
+                
+        elif azure_api_key and azure_endpoint and azure_deployment:
+            logger.info("Using Azure OpenAI embeddings and chat completions.")
+            if azure_chat_deployment:
+                logger.info(f"Azure chat completions enabled with deployment: {azure_chat_deployment}")
+            else:
+                logger.warning("No Azure chat deployment provided. LLM-powered metrics will use fallbacks.")
+            
             try:
                 self.embedding_provider: EmbeddingProvider = AzureEmbeddings(
                     api_key=azure_api_key,
                     endpoint=azure_endpoint,
-                    deployment=azure_deployment,
+                    embedding_deployment=azure_deployment,
+                    chat_deployment=azure_chat_deployment,
                     api_version=azure_api_version,
                     expected_dim=self.expected_embedding_dim
                 )
+                self.backend_type = "azure"
             except Exception as e:
                 logger.error(f"Failed to initialize AzureEmbeddings: {e}")
                 raise
@@ -92,23 +124,22 @@ class SalesPredictor:
                     expected_dim=self.expected_embedding_dim,
                     llm_model=llm_model
                 )
+                self.backend_type = "opensource"
             except Exception as e:
                 logger.error(f"Failed to initialize OpenSourceEmbeddings: {e}")
                 raise
 
         self.conversation_states: Dict[str, Dict[str, Any]] = {}
-        logger.info("SalesPredictor initialized successfully.")
+        logger.info(f"SalesPredictor initialized successfully with {self.backend_type} backend.")
 
     def _get_effective_turn_for_prediction(
         self,
         conversation_history: List[Dict[str,str]],
         conversation_id: str,
         is_incremental_call: bool 
-        ) -> Tuple[int, List[float]]: # Type hint uses Tuple
+        ) -> Tuple[int, List[float]]:
         """
         Determines the effective turn number and previous probabilities for the current prediction.
-        - For incremental calls (part of an ongoing conversation): uses stored state.
-        - For one-shot full history calls: calculates turn from history length, previous_probs is empty.
         """
         if is_incremental_call:
             stored_state = self.conversation_states.get(
@@ -117,7 +148,7 @@ class SalesPredictor:
             )
             effective_turn = stored_state['turn_number']
             previous_probs = stored_state['probabilities']
-            logger.debug(f"Incremental call for conv_id '{conversation_id}'. Effective turn from state: {effective_turn}. Prev_probs count: {len(previous_probs)}")
+            logger.debug(f"Incremental call for conv_id '{conversation_id}'. Effective turn from state: {effective_turn}")
         else:
             if conversation_history:
                 effective_turn = len(conversation_history) - 1
@@ -125,7 +156,7 @@ class SalesPredictor:
             else:
                 effective_turn = 0 
             previous_probs = [] 
-            logger.debug(f"One-shot/new call for conv_id '{conversation_id}'. Effective turn from history len: {effective_turn}. Prev_probs empty.")
+            logger.debug(f"One-shot/new call for conv_id '{conversation_id}'. Effective turn from history len: {effective_turn}")
         
         return effective_turn, previous_probs
 
@@ -174,8 +205,7 @@ class SalesPredictor:
         if observation.shape[0] != expected_shape[0]:
             logger.error(
                 f"Observation shape mismatch for PPO model! Expected ({expected_shape[0]},), got ({observation.shape[0]},). "
-                f"Effective_turn: {effective_turn}, Embedding shape: {embedding.shape}, "
-                f"Metrics keys: {list(metrics.keys())}, Num prev_probs: {len(previous_probs)}"
+                f"Effective_turn: {effective_turn}, Embedding shape: {embedding.shape}"
             )
             raise ValueError("Observation shape mismatch. Cannot proceed with PPO model prediction.")
 
@@ -187,15 +217,14 @@ class SalesPredictor:
             'probabilities': updated_probs_for_state[-10:], 
             'turn_number': effective_turn + 1 
         }
-        logger.debug(f"Updated state for conv_id '{conversation_id}': next turn {effective_turn + 1}, prev_probs count {len(updated_probs_for_state[-10:])}")
-
 
         return {
             'probability': probability,
             'turn': effective_turn, 
             'metrics': metrics, 
             'status': self._get_status(probability),
-            'suggested_action': self._get_suggested_action(probability, metrics)
+            'suggested_action': self._get_suggested_action(probability, metrics),
+            'backend': self.backend_type
         }
 
     def generate_response_and_predict(

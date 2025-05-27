@@ -4,7 +4,7 @@ A powerful Python package for predicting sales conversion probability using
 reinforcement learning.
 """
 
-__version__ = "0.4.0" 
+__version__ = "0.4.5" 
 
 
 from . import sales

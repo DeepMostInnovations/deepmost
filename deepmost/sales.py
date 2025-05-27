@@ -2,9 +2,13 @@
 
 import os
 import sys
+import logging
 from typing import List, Dict, Optional, Union
 from .core.predictor import SalesPredictor
 from .core.utils import download_model
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 # Model URLs based on Python version and backend
 OPENSOURCE_MODEL_URL = "https://huggingface.co/DeepMostInnovations/sales-conversion-model-reinf-learning/resolve/main/sales_conversion_model.zip"
@@ -15,60 +19,99 @@ OPENSOURCE_MODEL_PATH = os.path.expanduser("~/.deepmost/models/sales_conversion_
 AZURE_MODEL_PATH = os.path.expanduser("~/.deepmost/models/sales_model.zip")
 
 
-def _get_default_model_info(use_azure: bool = False):
-    """Get model URL and path based on backend and Python version"""
+def _get_default_model_info(backend_type: str = "opensource"):
+    """Get model URL and path based on backend type"""
     python_version = sys.version_info
     
-    if use_azure:
+    if backend_type == "azure":
         if python_version < (3, 10):
             raise RuntimeError("Azure OpenAI backend requires Python 3.10 or higher")
         return AZURE_MODEL_URL, AZURE_MODEL_PATH
-    else:
+    elif backend_type == "openai":
+        if python_version < (3, 10):
+            raise RuntimeError("OpenAI backend requires Python 3.10 or higher")
+        return AZURE_MODEL_URL, AZURE_MODEL_PATH  # Same model for now
+    else:  # opensource
         if python_version < (3, 11):
             raise RuntimeError("Open-source backend requires Python 3.11 or higher")
         return OPENSOURCE_MODEL_URL, OPENSOURCE_MODEL_PATH
 
 
 class Agent:
-    """Sales prediction agent with simple API"""
+    """Sales prediction agent with support for three backends: open-source, Azure OpenAI, and standard OpenAI"""
     
     def __init__(
         self,
         model_path: Optional[str] = None,
+        # Azure OpenAI parameters
         azure_api_key: Optional[str] = None,
         azure_endpoint: Optional[str] = None,
         azure_deployment: Optional[str] = None,
+        azure_chat_deployment: Optional[str] = None,
+        azure_api_version: str = "2024-10-21",
+        # Standard OpenAI parameters
+        openai_api_key: Optional[str] = None,
+        openai_embedding_model: str = "text-embedding-3-large",
+        openai_chat_model: Optional[str] = None,
+        # Open-source parameters
         embedding_model: str = "BAAI/bge-m3",
-        use_gpu: bool = True,
         llm_model: Optional[str] = None,
+        use_gpu: bool = True,
         auto_download: bool = True,
         force_backend: Optional[str] = None
     ):
         """
-        Initialize the sales agent.
+        Initialize the sales agent with support for three backends.
+        
+        Backend Selection Priority:
+        1. force_backend parameter
+        2. Standard OpenAI (if openai_api_key provided)
+        3. Azure OpenAI (if azure credentials provided)
+        4. Open-source (default)
         
         Args:
             model_path: Path to the PPO model. If None, downloads appropriate model.
-            azure_api_key: Azure OpenAI API key (for Azure embeddings)
+            
+            # Azure OpenAI Backend
+            azure_api_key: Azure OpenAI API key
             azure_endpoint: Azure OpenAI endpoint
-            azure_deployment: Azure deployment name for embeddings
-            embedding_model: HuggingFace model name for embeddings (ignored if using Azure)
-            use_gpu: Whether to use GPU for inference
+            azure_deployment: Azure deployment name for embeddings (e.g., "text-embedding-ada-002")
+            azure_chat_deployment: Azure deployment name for chat completions (e.g., "gpt-4o")
+            azure_api_version: Azure OpenAI API version (default: "2024-10-21")
+            
+            # Standard OpenAI Backend
+            openai_api_key: Standard OpenAI API key
+            openai_embedding_model: OpenAI embedding model (default: "text-embedding-3-large")
+            openai_chat_model: OpenAI chat model (e.g., "gpt-4o", "gpt-4o-mini")
+            
+            # Open-source Backend
+            embedding_model: HuggingFace model name for embeddings (default: "BAAI/bge-m3")
             llm_model: Optional LLM model path or HF repo for response generation
+            use_gpu: Whether to use GPU for inference
+            
+            # General
             auto_download: Whether to auto-download model if not found
-            force_backend: Force 'azure' or 'opensource' backend (for testing)
+            force_backend: Force specific backend ('azure', 'openai', 'opensource')
         """
         # Determine backend
         if force_backend:
-            self.use_azure = force_backend.lower() == 'azure'
+            self.backend_type = force_backend.lower()
+            if self.backend_type not in ['azure', 'openai', 'opensource']:
+                raise ValueError("force_backend must be 'azure', 'openai', or 'opensource'")
+        elif openai_api_key:
+            self.backend_type = 'openai'
+        elif all([azure_api_key, azure_endpoint, azure_deployment]):
+            self.backend_type = 'azure'
         else:
-            self.use_azure = all([azure_api_key, azure_endpoint, azure_deployment])
+            self.backend_type = 'opensource'
+        
+        logger.info(f"Using {self.backend_type} backend")
         
         # Handle model path
         if model_path is None:
-            model_url, model_path = _get_default_model_info(self.use_azure)
+            model_url, model_path = _get_default_model_info(self.backend_type)
             if not os.path.exists(model_path) and auto_download:
-                print(f"Downloading {'Azure' if self.use_azure else 'open-source'} model to {model_path}...")
+                print(f"Downloading {self.backend_type} model to {model_path}...")
                 download_model(model_url, model_path)
         elif model_path.startswith(('http://', 'https://')):
             # Handle URL: download to local cache
@@ -84,16 +127,32 @@ class Agent:
             
             model_path = local_model_path
         
-        # Initialize predictor
-        self.predictor = SalesPredictor(
-            model_path=model_path,
-            azure_api_key=azure_api_key,
-            azure_endpoint=azure_endpoint,
-            azure_deployment=azure_deployment,
-            embedding_model=embedding_model,
-            use_gpu=use_gpu,
-            llm_model=llm_model
-        )
+        # Initialize predictor with appropriate backend
+        if self.backend_type == 'azure':
+            self.predictor = SalesPredictor(
+                model_path=model_path,
+                azure_api_key=azure_api_key,
+                azure_endpoint=azure_endpoint,
+                azure_deployment=azure_deployment,
+                azure_chat_deployment=azure_chat_deployment,
+                azure_api_version=azure_api_version,
+                use_gpu=use_gpu
+            )
+        elif self.backend_type == 'openai':
+            self.predictor = SalesPredictor(
+                model_path=model_path,
+                openai_api_key=openai_api_key,
+                openai_embedding_model=openai_embedding_model,
+                openai_chat_model=openai_chat_model,
+                use_gpu=use_gpu
+            )
+        else:  # opensource
+            self.predictor = SalesPredictor(
+                model_path=model_path,
+                embedding_model=embedding_model,
+                llm_model=llm_model,
+                use_gpu=use_gpu
+            )
     
     def predict(
         self,
@@ -173,8 +232,8 @@ class Agent:
             # Get prediction for this turn
             result = self.predictor.predict_conversion(
                 conversation_history=conversation_so_far,
-                conversation_id=f"{conversation_id}_progression",  # Use unique ID for progression
-                is_incremental_prediction=False  # Each turn is analyzed independently
+                conversation_id=f"{conversation_id}_progression",
+                is_incremental_prediction=False
             )
             
             current_msg = conversation[i]
@@ -200,6 +259,7 @@ class Agent:
         if print_results:
             print(f"\nFinal Conversion Probability: {results[-1]['probability']:.2%}")
             print(f"Final Status: {results[-1]['status']}")
+            print(f"Backend: {self.backend_type.title()}")
         
         return results
     
@@ -285,14 +345,20 @@ def get_system_info():
     
     # Check backend support
     try:
-        _get_default_model_info(use_azure=False)
+        _get_default_model_info("opensource")
         info['supported_backends'].append('opensource')
     except RuntimeError:
         pass
     
     try:
-        _get_default_model_info(use_azure=True)
+        _get_default_model_info("azure")
         info['supported_backends'].append('azure')
+    except RuntimeError:
+        pass
+        
+    try:
+        _get_default_model_info("openai")
+        info['supported_backends'].append('openai')
     except RuntimeError:
         pass
     

@@ -1,8 +1,7 @@
 # DeepMost - Advanced Sales Conversation Analysis
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PyPI version](https://badge.fury.io/py/deepmost.svg)](https://badge.fury.io/py/deepmost)
 
 A powerful Python package for analyzing sales conversations and predicting conversion probability using advanced reinforcement learning. **DeepMost specializes in turn-by-turn conversation analysis**, showing you exactly how each message impacts your sales success.
 
@@ -10,56 +9,46 @@ A powerful Python package for analyzing sales conversations and predicting conve
 
 - **Turn-by-Turn Conversation Analysis**: Track how conversion probability evolves with each message exchange
 - **Advanced PPO Reinforcement Learning**: Trained on real sales conversations for accurate predictions
-- **Dual Backend Support**: Choose between open-source (HuggingFace + GGUF) or Azure OpenAI backends
+- **Triple Backend Support**: Choose between Open-source (HuggingFace + GGUF), Azure OpenAI, or Standard OpenAI
 - **Dynamic LLM-Powered Metrics**: Real-time analysis of customer engagement and sales effectiveness
 - **Sales Training & Coaching**: Identify which conversation elements increase or decrease conversion probability
 - **A/B Testing Sales Scripts**: Compare different approaches and optimize your sales methodology
 - **Real-time Sales Assistance**: Get insights during live conversations to guide next steps
 - **GPU Acceleration**: Full CUDA/Metal support for fast analysis (open-source backend)
-- **Enterprise Ready**: Azure OpenAI integration for enterprise deployments
+- **Enterprise Ready**: Azure OpenAI and Standard OpenAI integration for production deployments
 
 ## 📦 Installation
 
 ### Requirements
 - **Open-Source Backend**: Python 3.11+ (no other versions supported)
-- **Azure Backend**: Python 3.10+ 
+- **Azure/Standard OpenAI Backends**: Python 3.10+ 
 
-### Open-Source Installation (Recommended for Development)
-
-**Basic Installation:**
+### Basic Installation
 ```bash
 pip install deepmost
 ```
 
-**With GPU Support (Recommended):**
+### Open-Source Backend with GPU Support
+For best performance and local LLM analysis:
 ```bash
 pip install deepmost[gpu]
 ```
 
-**Manual GPU Setup (If automatic installation fails):**
+### Manual GPU Setup (If automatic installation fails)
 
-*For NVIDIA CUDA:*
+**For NVIDIA CUDA:**
 ```bash
 CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir
 pip install deepmost
 ```
 
-*For Apple Metal (M1/M2/M3):*
+**For Apple Metal (M1/M2/M3):**
 ```bash
 CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python --upgrade --force-reinstall --no-cache-dir
 pip install deepmost
 ```
 
-### Azure OpenAI Installation (Enterprise)
-
-```bash
-pip install deepmost
-```
-
-*Note: Azure backend doesn't require GPU compilation as it uses cloud-based embeddings and models.*
-
 ### Verify Installation
-
 ```python
 import torch
 from deepmost import sales
@@ -69,10 +58,9 @@ info = sales.get_system_info()
 print(f"Supported Backends: {info['supported_backends']}")
 ```
 
-## 🎯 Quick Start
+## 🎯 Quick Start Examples
 
-### Simple Turn-by-Turn Analysis (Open-Source)
-
+### Open-Source Backend (Local & Private)
 ```python
 from deepmost import sales
 
@@ -98,18 +86,18 @@ Turn 5 (customer): "That sounds interesting. What's the pricing like?" -> Probab
 
 Final Conversion Probability: 52.34%
 Final Status: 🟢 High
+Backend: Opensource
 ```
 
-### Azure OpenAI Backend Usage
-
+### Standard OpenAI Backend (Latest Models)
 ```python
 from deepmost import sales
 
-# Initialize with Azure OpenAI credentials
+# Initialize with standard OpenAI (latest models)
 agent = sales.Agent(
-    azure_api_key="your-azure-api-key",
-    azure_endpoint="https://your-resource.openai.azure.com",
-    azure_deployment="your-embedding-deployment-name"
+    openai_api_key="your-openai-api-key",
+    openai_embedding_model="text-embedding-3-large",  # Latest embedding model
+    openai_chat_model="gpt-4o"  # Latest chat model
 )
 
 conversation = [
@@ -119,7 +107,27 @@ conversation = [
     {"speaker": "sales_rep", "message": "Those are exactly the areas where our platform excels."}
 ]
 
-# Get detailed turn-by-turn analysis
+# Get detailed turn-by-turn analysis with full LLM-powered metrics
+results = agent.analyze_conversation_progression(conversation, print_results=True)
+```
+
+### Azure OpenAI Backend (Enterprise)
+```python
+from deepmost import sales
+
+# Initialize with Azure OpenAI (enterprise security)
+agent = sales.Agent(
+    azure_api_key="your-azure-api-key",
+    azure_endpoint="https://your-resource.openai.azure.com",
+    azure_deployment="text-embedding-3-large",  # Embedding deployment
+    azure_chat_deployment="gpt-4o"  # Chat completion deployment
+)
+
+conversation = [
+    {"speaker": "customer", "message": "We need a solution that integrates with our existing tools"},
+    {"speaker": "sales_rep", "message": "Our platform offers native integrations with 200+ tools. Which ones are most important to you?"}
+]
+
 results = agent.analyze_conversation_progression(conversation, print_results=True)
 ```
 
@@ -157,19 +165,53 @@ agent = sales.Agent(llm_model="unsloth/Llama-3.1-8B-Instruct-GGUF")
 agent = sales.Agent(llm_model="microsoft/Phi-3-mini-4k-instruct-gguf")
 ```
 
-**Custom PPO Models:**
+### Standard OpenAI Backend (Latest Models)
+
+**Basic Configuration:**
 ```python
-# Use your own trained PPO model
+from deepmost import sales
+
 agent = sales.Agent(
-    model_path="/path/to/your/ppo_model.zip",
-    embedding_model="BAAI/bge-m3",  # Must match training setup
-    llm_model="unsloth/Qwen3-4B-GGUF"
+    # Standard OpenAI API key
+    openai_api_key="your-openai-api-key",
+    
+    # Latest embedding models (choose based on needs)
+    openai_embedding_model="text-embedding-3-large",  # High performance (3072 dims)
+
+    
+    # Latest chat models
+    openai_chat_model="gpt-4o",  # Best performance
+    # openai_chat_model="gpt-4o-mini",  # Cost-effective
+)
+```
+
+**OpenAI Model Options:**
+```python
+# High performance setup (recommended for production)
+agent = sales.Agent(
+    openai_api_key="your-api-key",
+    openai_embedding_model="text-embedding-3-large",  # 3072 dimensions
+    openai_chat_model="gpt-4o"  # Latest GPT-4o
+)
+
+# Cost-effective setup
+agent = sales.Agent(
+    openai_api_key="your-api-key",
+    openai_embedding_model="text-embedding-3-large", 
+    openai_chat_model="gpt-4o-mini"  # Smaller, faster, cheaper
+)
+
+# Legacy models (still supported)
+agent = sales.Agent(
+    openai_api_key="your-api-key",
+    openai_embedding_model="text-embedding-3-large",  # Original model
+    openai_chat_model="gpt-3.5-turbo"  # GPT-3.5
 )
 ```
 
 ### Azure OpenAI Backend (Enterprise)
 
-**Basic Azure Configuration:**
+**Basic Configuration:**
 ```python
 from deepmost import sales
 
@@ -177,77 +219,81 @@ agent = sales.Agent(
     # Azure OpenAI credentials
     azure_api_key="your-azure-openai-api-key",
     azure_endpoint="https://your-resource.openai.azure.com",
-    azure_deployment="your-embedding-deployment",  # e.g., "text-embedding-ada-002"
+    azure_deployment="text-embedding-3-large",  # Embedding deployment
+    azure_chat_deployment="gpt-4o",  # Chat completion deployment
     
-    # Optional: specify API version
-    # azure_api_version="2023-12-01-preview"  # Default
+    # Optional: specify API version (default: "2024-10-21")
+    azure_api_version="2024-10-21"
 )
 ```
 
 **Azure Setup Requirements:**
 
 1. **Azure OpenAI Resource**: Create an Azure OpenAI resource in your subscription
-2. **Embedding Deployment**: Deploy an embedding model (recommended: `text-embedding-ada-002`)
-3. **API Key & Endpoint**: Get your API key and endpoint from Azure portal
+2. **Embedding Deployment**: Deploy an embedding model (recommended: `text-embedding-3-large`)
+3. **Chat Deployment**: Deploy a chat model (recommended: `gpt-4o`, `gpt-4o-mini`, or `gpt-35-turbo`)
+4. **API Key & Endpoint**: Get your API key and endpoint from Azure portal
 
 **Example Azure Deployment Setup:**
 ```bash
-# Using Azure CLI to create embedding deployment
+# Using Azure CLI to create deployments
+# 1. Create embedding deployment
 az cognitiveservices account deployment create \
   --resource-group "your-rg" \
   --name "your-openai-resource" \
-  --deployment-name "text-embedding-ada-002" \
-  --model-name "text-embedding-ada-002" \
+  --deployment-name "text-embedding-3-large" \
+  --model-name "text-embedding-3-large" \
   --model-version "2" \
+  --model-format "OpenAI" \
+  --scale-settings-scale-type "Standard"
+
+# 2. Create chat completion deployment
+az cognitiveservices account deployment create \
+  --resource-group "your-rg" \
+  --name "your-openai-resource" \
+  --deployment-name "gpt-4o" \
+  --model-name "gpt-4o" \
+  --model-version "2024-08-06" \
   --model-format "OpenAI" \
   --scale-settings-scale-type "Standard"
 ```
 
-**Advanced Azure Configuration:**
+**Azure Chat Model Options:**
 ```python
+# High performance (recommended for production)
 agent = sales.Agent(
-    azure_api_key="your-api-key",
-    azure_endpoint="https://your-resource.openai.azure.com",
-    azure_deployment="text-embedding-ada-002",
-    azure_api_version="2023-12-01-preview",
-    
-    # Optional: Custom PPO model path
-    model_path="/path/to/azure-compatible-model.zip",
-    
-    # GPU not needed for Azure backend (cloud-based)
-    use_gpu=False
+    azure_chat_deployment="gpt-4o",  # Latest GPT-4o
+    # ... other Azure config
 )
-```
 
-**Environment Variable Setup (Recommended):**
-```python
-import os
-
-# Set environment variables
-os.environ["AZURE_OPENAI_API_KEY"] = "your-api-key"
-os.environ["AZURE_OPENAI_ENDPOINT"] = "https://your-resource.openai.azure.com"
-os.environ["AZURE_OPENAI_DEPLOYMENT"] = "text-embedding-ada-002"
-
-# Initialize with environment variables
+# Cost-effective option
 agent = sales.Agent(
-    azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT")
+    azure_chat_deployment="gpt-4o-mini",  # Smaller, faster, cheaper
+    # ... other Azure config
+)
+
+# Legacy option (still supported)
+agent = sales.Agent(
+    azure_chat_deployment="gpt-35-turbo",  # GPT-3.5 Turbo
+    # ... other Azure config
 )
 ```
 
 ### Backend Comparison
 
-| Feature | Open-Source Backend | Azure Backend |
-|---------|-------------------|---------------|
-| **Cost** | Free (local compute) | Pay-per-API-call |
-| **Setup** | More complex (GPU setup) | Simpler (cloud-based) |
-| **Privacy** | Complete data privacy | Data sent to Azure |
-| **Performance** | Depends on local hardware | Consistent cloud performance |
-| **LLM Analysis** | Full GGUF model analysis | Basic heuristic analysis |
-| **Scalability** | Limited by local resources | Highly scalable |
-| **Offline** | Works offline | Requires internet |
-| **Enterprise** | Good for development | Ideal for production |
+| Feature | Open-Source | Standard OpenAI | Azure OpenAI |
+|---------|-------------|-----------------|--------------|
+| **Cost** | Free (local compute) | Pay-per-API-call | Pay-per-API-call |
+| **Setup** | More complex (GPU) | Simple (API key) | Moderate (deployments) |
+| **Privacy** | Complete data privacy | Data sent to OpenAI | Data sent to Azure |
+| **Performance** | Depends on hardware | Consistent cloud | Consistent cloud |
+| **Latest Models** | Limited to GGUF | ✅ Latest GPT-4o, embeddings | ✅ Enterprise versions |
+| **LLM Analysis** | ✅ Full local analysis | ✅ Full cloud analysis | ✅ Full cloud analysis |
+| **Response Generation** | ✅ Full capabilities | ✅ Full capabilities | ✅ Full capabilities |
+| **Scalability** | Limited by hardware | Highly scalable | Highly scalable |
+| **Offline** | ✅ Works offline | ❌ Requires internet | ❌ Requires internet |
+| **Enterprise** | Good for development | Good for startups | ✅ Ideal for enterprise |
+| **Compliance** | Self-managed | OpenAI terms | ✅ Enterprise compliance |
 
 ## 📊 Understanding Results
 
@@ -268,7 +314,7 @@ agent = sales.Agent(
         'conversation_style': 'direct_professional',
         'conversation_flow': 'standard_linear',
         'primary_customer_needs': ['efficiency', 'cost_reduction']
-        # ... additional metrics
+        # ... additional comprehensive metrics
     }
 }
 ```
@@ -279,9 +325,9 @@ agent = sales.Agent(
 - 🟠 **Low** (≥30%): Needs improvement - re-engage or discover deeper needs
 - 🔴 **Very Low** (<30%): Poor fit or major obstacles - consider re-qualifying
 
-### Comprehensive Metrics (Open-Source Backend with LLM)
+### Comprehensive Metrics (All Backends with LLM)
 
-When using the open-source backend with a GGUF LLM model, you get enhanced metrics:
+When using any backend with LLM support enabled, you get enhanced metrics:
 
 ```python
 {
@@ -331,7 +377,12 @@ training_conversation = [
     {"speaker": "sales_rep", "message": "Perfect! We have native integrations for all three. Let me show you how seamless the data sync is."}
 ]
 
-agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
+# Use any backend (example with OpenAI)
+agent = sales.Agent(
+    openai_api_key="your-api-key",
+    openai_chat_model="gpt-4o"
+)
+
 results = agent.analyze_conversation_progression(training_conversation)
 
 # Identify which turns increased/decreased probability
@@ -345,7 +396,7 @@ for i, result in enumerate(results[1:], 1):
 
 ### 2. A/B Testing Sales Scripts
 
-Compare different response strategies:
+Compare different response strategies across backends:
 
 ```python
 # Test different ways to handle pricing questions
@@ -359,14 +410,23 @@ script_b_conversation = [
     "I'd love to get you accurate pricing! What's your team size and main requirements?"
 ]
 
-# Test both scripts
-agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
-results_a = agent.analyze_conversation_progression(script_a_conversation, print_results=False)
-results_b = agent.analyze_conversation_progression(script_b_conversation, print_results=False)
+# Test with different backends
+backends = [
+    {"openai_api_key": "key", "openai_chat_model": "gpt-4o"},
+    {"azure_api_key": "key", "azure_endpoint": "endpoint", "azure_deployment": "embedding", "azure_chat_deployment": "gpt-4o"},
+    {"llm_model": "unsloth/Qwen3-4B-GGUF"}
+]
 
-print(f"Script A final probability: {results_a[-1]['probability']:.2%}")
-print(f"Script B final probability: {results_b[-1]['probability']:.2%}")
-print(f"Improvement: {(results_b[-1]['probability'] - results_a[-1]['probability']):.2%}")
+for i, backend_config in enumerate(backends):
+    agent = sales.Agent(**backend_config)
+    results_a = agent.analyze_conversation_progression(script_a_conversation, print_results=False)
+    results_b = agent.analyze_conversation_progression(script_b_conversation, print_results=False)
+    
+    backend_name = ["OpenAI", "Azure", "Open-source"][i]
+    print(f"\n{backend_name} Backend:")
+    print(f"Script A final probability: {results_a[-1]['probability']:.2%}")
+    print(f"Script B final probability: {results_b[-1]['probability']:.2%}")
+    print(f"Improvement: {(results_b[-1]['probability'] - results_a[-1]['probability']):.2%}")
 ```
 
 ### 3. Real-time Sales Assistance
@@ -374,105 +434,166 @@ print(f"Improvement: {(results_b[-1]['probability'] - results_a[-1]['probability
 Use during live conversations for guidance:
 
 ```python
-# Analyze ongoing conversation
+# Analyze ongoing conversation with response generation
 current_conversation = [
     {"speaker": "customer", "message": "Your solution looks expensive compared to competitors"},
     {"speaker": "sales_rep", "message": "I understand the investment concern. Let me break down the ROI..."}
 ]
 
-results = agent.analyze_conversation_progression(current_conversation, print_results=False)
+user_message = "I'm still not convinced it's worth the price difference"
 
-# Get trend and recommendations
-if len(results) >= 2:
-    trend_change = results[-1]['probability'] - results[-2]['probability']
-    trend = "📈 Improving" if trend_change > 0 else "📉 Declining"
-    print(f"Conversation trend: {trend} ({trend_change:+.3f})")
+# Generate intelligent response and get predictions
+agent = sales.Agent(openai_api_key="your-key", openai_chat_model="gpt-4o")
 
-# Get AI-powered suggestions based on current state
-current_metrics = results[-1]['metrics']
-if current_metrics['customer_engagement'] < 0.5:
+response_result = agent.predict_with_response(
+    conversation=current_conversation,
+    user_input=user_message,
+    system_prompt="You are a professional sales representative focused on value-based selling."
+)
+
+print(f"Suggested Response: {response_result['response']}")
+print(f"Predicted Probability: {response_result['prediction']['probability']:.2%}")
+print(f"Status: {response_result['prediction']['status']}")
+
+# Get comprehensive metrics
+metrics = response_result['prediction']['metrics']
+if metrics['customer_engagement'] < 0.5:
     print("💡 Suggestion: Customer engagement is low. Ask open-ended questions to re-engage.")
-elif current_metrics['sales_effectiveness'] < 0.5:
-    print("💡 Suggestion: Refine your approach. Focus on customer needs and value proposition.")
+elif metrics['pricing_sensitivity'] > 0.7:
+    print("💡 Suggestion: High price sensitivity detected. Focus on ROI and value demonstration.")
 ```
 
-### 4. Enterprise Integration with Azure
+### 4. Enterprise Integration Examples
 
-For enterprise deployments with Azure OpenAI:
-
+#### Standard OpenAI Integration
 ```python
 import os
 from deepmost import sales
 
-# Enterprise configuration with environment variables
+# Production configuration with environment variables
 agent = sales.Agent(
-    azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT")
+    openai_api_key=os.getenv("OPENAI_API_KEY"),
+    openai_embedding_model="text-embedding-3-large",
+    openai_chat_model="gpt-4o"
 )
 
-def analyze_sales_call(conversation_data):
-    """Analyze a sales call for enterprise reporting"""
-    results = agent.analyze_conversation_progression(
-        conversation_data, 
+def analyze_sales_call_with_response_generation(conversation_data, user_input):
+    """Enterprise sales call analysis with AI-generated responses"""
+    
+    # Generate intelligent response and predict outcome
+    response_result = agent.predict_with_response(
+        conversation=conversation_data,
+        user_input=user_input,
+        system_prompt="You are a professional sales representative focused on understanding customer needs and building value."
+    )
+    
+    # Analyze full conversation progression
+    full_conversation = conversation_data + [
+        {"speaker": "customer", "message": user_input},
+        {"speaker": "sales_rep", "message": response_result['response']}
+    ]
+    
+    progression_results = agent.analyze_conversation_progression(
+        full_conversation, 
         print_results=False
     )
     
     return {
-        'final_probability': results[-1]['probability'],
-        'status': results[-1]['status'],
-        'key_metrics': {
-            'engagement': results[-1]['metrics']['customer_engagement'],
-            'effectiveness': results[-1]['metrics']['sales_effectiveness'],
-            'objections': results[-1]['metrics']['objection_count']
+        'generated_response': response_result['response'],
+        'final_probability': progression_results[-1]['probability'],
+        'status': progression_results[-1]['status'],
+        'comprehensive_metrics': {
+            'engagement': progression_results[-1]['metrics']['customer_engagement'],
+            'effectiveness': progression_results[-1]['metrics']['sales_effectiveness'],
+            'conversation_style': progression_results[-1]['metrics']['conversation_style'],
+            'objection_level': progression_results[-1]['metrics']['objection_count'],
+            'technical_depth': progression_results[-1]['metrics']['technical_depth'],
+            'urgency_signals': progression_results[-1]['metrics']['urgency_level'],
+            'decision_authority': progression_results[-1]['metrics']['decision_authority_signals']
         },
-        'recommended_actions': results[-1]['metrics'].get('suggested_action', 'Continue building rapport')
+        'recommended_actions': progression_results[-1]['metrics'].get('suggested_action', 'Continue building rapport'),
+        'probability_evolution': [turn['probability'] for turn in progression_results],
+        'backend_used': 'openai'
     }
-
-# Use in production
-call_analysis = analyze_sales_call(your_conversation_data)
 ```
 
-### 5. Batch Processing for Analytics
+#### Azure OpenAI Enterprise Integration
+```python
+import os
+from deepmost import sales
 
-Process multiple conversations for insights:
+# Enterprise Azure configuration
+agent = sales.Agent(
+    azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+    azure_chat_deployment=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT")
+)
+
+def enterprise_conversation_analysis(conversation_data):
+    """Enterprise-grade conversation analysis with Azure OpenAI"""
+    results = agent.analyze_conversation_progression(conversation_data, print_results=False)
+    
+    return {
+        'conversion_probability': results[-1]['probability'],
+        'confidence_level': results[-1]['status'],
+        'key_insights': {
+            'customer_sentiment': results[-1]['metrics']['customer_engagement'],
+            'sales_approach_quality': results[-1]['metrics']['sales_effectiveness'],
+            'conversation_complexity': results[-1]['metrics']['technical_depth'],
+            'purchase_readiness': results[-1]['metrics']['decision_authority_signals']
+        },
+        'recommended_next_steps': results[-1]['metrics'].get('suggested_action'),
+        'backend_compliance': 'azure_enterprise'
+    }
+```
+
+### 5. Multi-Backend Comparison Analysis
 
 ```python
-conversations = [
-    # Load your conversation datasets
-    {"id": "conv_1", "messages": [...]},
-    {"id": "conv_2", "messages": [...]},
-    # ... more conversations
+def compare_backends_analysis(conversation):
+    """Compare analysis across all three backends"""
+    
+    backends = {
+        'Open-source': sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF"),
+        'OpenAI': sales.Agent(openai_api_key="key", openai_chat_model="gpt-4o"),
+        'Azure': sales.Agent(azure_api_key="key", azure_endpoint="endpoint", 
+                           azure_deployment="embedding", azure_chat_deployment="gpt-4o")
+    }
+    
+    results = {}
+    
+    for backend_name, agent in backends.items():
+        try:
+            analysis = agent.analyze_conversation_progression(conversation, print_results=False)
+            results[backend_name] = {
+                'final_probability': analysis[-1]['probability'],
+                'engagement_score': analysis[-1]['metrics']['customer_engagement'],
+                'effectiveness_score': analysis[-1]['metrics']['sales_effectiveness'],
+                'conversation_style': analysis[-1]['metrics']['conversation_style']
+            }
+        except Exception as e:
+            results[backend_name] = {'error': str(e)}
+    
+    return results
+
+# Usage
+conversation = [
+    {"speaker": "customer", "message": "We're evaluating CRM solutions"},
+    {"speaker": "sales_rep", "message": "What's driving your evaluation?"},
+    {"speaker": "customer", "message": "Need better reporting and automation"}
 ]
 
-agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
-results = []
-
-for conv in conversations:
-    analysis = agent.analyze_conversation_progression(
-        conv["messages"], 
-        conversation_id=conv["id"],
-        print_results=False
-    )
-    
-    results.append({
-        'conversation_id': conv["id"],
-        'final_probability': analysis[-1]['probability'],
-        'turn_count': len(analysis),
-        'avg_engagement': np.mean([turn['metrics']['customer_engagement'] for turn in analysis]),
-        'avg_effectiveness': np.mean([turn['metrics']['sales_effectiveness'] for turn in analysis])
-    })
-
-# Analyze results
-import pandas as pd
-df = pd.DataFrame(results)
-print(f"Average conversion probability: {df['final_probability'].mean():.2%}")
-print(f"High-performing conversations (>50%): {(df['final_probability'] > 0.5).sum()}")
+comparison = compare_backends_analysis(conversation)
+for backend, result in comparison.items():
+    if 'error' not in result:
+        print(f"{backend}: {result['final_probability']:.2%} probability, "
+              f"Engagement: {result['engagement_score']:.2f}")
 ```
 
 ## 📝 Conversation Formats
 
-DeepMost accepts multiple conversation formats:
+DeepMost accepts multiple conversation formats across all backends:
 
 ### Structured Format (Recommended)
 ```python
@@ -536,16 +657,42 @@ CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python --upgrade --force-rein
 pip install deepmost
 ```
 
-**LLM Model Issues:**
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
+### Standard OpenAI Backend Issues
 
-# This will show detailed LLM outputs for troubleshooting
-agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
+**Authentication Problems:**
+```python
+# Test OpenAI connection
+try:
+    from openai import OpenAI
+    
+    client = OpenAI(api_key="your-api-key")
+    
+    # Test embedding call
+    response = client.embeddings.create(
+        input="test",
+        model="text-embedding-3-large"
+    )
+    print("✅ OpenAI connection successful")
+    
+    # Test chat call if needed
+    chat_response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "test"}],
+        max_tokens=5
+    )
+    print("✅ OpenAI chat completion successful")
+    
+except Exception as e:
+    print(f"❌ OpenAI connection failed: {e}")
 ```
 
-### Azure Backend Issues
+**Common OpenAI Issues:**
+1. **Invalid API Key**: Check your OpenAI API key
+2. **Model Not Available**: Ensure you have access to the requested models
+3. **Rate Limits**: Check your usage quotas and rate limits
+4. **Billing Issues**: Ensure your OpenAI account has sufficient credits
+
+### Azure OpenAI Backend Issues
 
 **Authentication Problems:**
 ```python
@@ -556,13 +703,13 @@ try:
     client = AzureOpenAI(
         api_key="your-api-key",
         azure_endpoint="https://your-resource.openai.azure.com",
-        api_version="2023-12-01-preview"
+        api_version="2024-10-21"
     )
     
     # Test embedding call
     response = client.embeddings.create(
         input="test",
-        model="your-deployment-name"  # Your embedding deployment
+        model="your-deployment-name"
     )
     print("✅ Azure OpenAI connection successful")
     
@@ -574,23 +721,54 @@ except Exception as e:
 1. **Invalid API Key**: Check your Azure OpenAI resource API keys
 2. **Wrong Endpoint**: Ensure endpoint format: `https://your-resource.openai.azure.com`
 3. **Deployment Not Found**: Verify your embedding deployment name exists
-4. **Quota Exceeded**: Check your Azure OpenAI usage quotas
-5. **Region Issues**: Ensure your deployment region supports the embedding model
+4. **Chat Deployment Issues**: Ensure your chat deployment exists and model is deployed
+5. **Quota Exceeded**: Check your Azure OpenAI usage quotas
+6. **Region Issues**: Ensure your deployment region supports the embedding and chat models
+7. **API Version Mismatch**: Use supported API version (default: "2024-10-21")
 
-**Azure Configuration Validation:**
+**Configuration Validation:**
 ```python
-def validate_azure_config():
-    required_vars = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
-    missing = [var for var in required_vars if not os.getenv(var)]
+def validate_all_backends():
+    """Validate all backend configurations"""
     
-    if missing:
-        print(f"❌ Missing environment variables: {missing}")
-        return False
+    # Test Open-source
+    try:
+        agent = sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
+        print("✅ Open-source backend available")
+    except Exception as e:
+        print(f"❌ Open-source backend error: {e}")
     
-    print("✅ All required Azure environment variables set")
-    return True
+    # Test OpenAI
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key:
+        try:
+            agent = sales.Agent(
+                openai_api_key=openai_key,
+                openai_chat_model="gpt-4o"
+            )
+            print("✅ OpenAI backend available")
+        except Exception as e:
+            print(f"❌ OpenAI backend error: {e}")
+    else:
+        print("⚠️ OPENAI_API_KEY not set")
+    
+    # Test Azure
+    azure_vars = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_EMBEDDING_DEPLOYMENT"]
+    if all(os.getenv(var) for var in azure_vars):
+        try:
+            agent = sales.Agent(
+                azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+                azure_chat_deployment=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT")
+            )
+            print("✅ Azure OpenAI backend available")
+        except Exception as e:
+            print(f"❌ Azure backend error: {e}")
+    else:
+        print("⚠️ Azure environment variables not set")
 
-validate_azure_config()
+validate_all_backends()
 ```
 
 ## 📈 Performance Optimization
@@ -618,28 +796,41 @@ if torch.cuda.is_available():
     print(f"GPU Memory Allocated: {torch.cuda.memory_allocated() / 1e9:.1f} GB")
 ```
 
-### Azure Backend
+### Standard OpenAI Backend
 
-**Cost Optimization:**
+
 ```python
-# Batch multiple predictions to reduce API calls
-conversations_batch = [conv1, conv2, conv3, ...]
+# Use cost-effective models for batch processing
+agent = sales.Agent(
+    openai_api_key="your-key",
+    openai_embedding_model="text-embedding-3-large",  # Cheaper than 3-large
+    openai_chat_model="gpt-4o-mini"  # Cheaper than gpt-4o
+)
 
-# Process efficiently
+# Batch processing for efficiency
+conversations = [conv1, conv2, conv3, ...]
+results = []
+
+for conv in conversations:
+    result = agent.analyze_conversation_progression(conv, print_results=False)
+    results.append(result)
+    # Optional: add small delay to avoid rate limits
+    time.sleep(0.1)
+```
+
+### Azure OpenAI Backend
+
+**Enterprise Optimization:**
+```python
+# Configure for enterprise scale
 agent = sales.Agent(
     azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-    azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT")
+    azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+    azure_chat_deployment=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT")
 )
 
-results = []
-for conv in conversations_batch:
-    result = agent.analyze_conversation_progression(conv, print_results=False)
-    results.append(result)
-```
-
-**Rate Limiting:**
-```python
+# Rate limiting for Azure API
 import time
 from typing import List
 
@@ -653,7 +844,7 @@ def batch_analyze_with_rate_limit(agent, conversations: List, delay: float = 1.0
             results.append(result)
             
             # Rate limiting
-            if i < len(conversations) - 1:  # Don't delay after last item
+            if i < len(conversations) - 1:
                 time.sleep(delay)
                 
         except Exception as e:
@@ -665,47 +856,98 @@ def batch_analyze_with_rate_limit(agent, conversations: List, delay: float = 1.0
 
 ## 🔄 Migration Between Backends
 
-### From Open-Source to Azure
+### Backend Flexibility
 
 ```python
-# Original open-source setup
-agent_os = sales.Agent(
-    llm_model="unsloth/Qwen3-4B-GGUF",
-    use_gpu=True
-)
-
-# Migrate to Azure
-agent_azure = sales.Agent(
-    azure_api_key="your-api-key",
-    azure_endpoint="https://your-resource.openai.azure.com",
-    azure_deployment="text-embedding-ada-002"
-)
-
-# Same conversation analysis API
-conversation = [...]  # Your conversation data
-results_os = agent_os.analyze_conversation_progression(conversation)
-results_azure = agent_azure.analyze_conversation_progression(conversation)
-```
-
-### Hybrid Approach
-
-```python
-def get_agent(use_azure: bool = False):
-    """Factory function for backend selection"""
-    if use_azure:
+def get_agent(backend_preference: str = "auto"):
+    """Factory function for flexible backend selection"""
+    
+    if backend_preference == "openai" and os.getenv("OPENAI_API_KEY"):
+        return sales.Agent(
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            openai_embedding_model="text-embedding-3-large",
+            openai_chat_model="gpt-4o"
+        )
+    elif backend_preference == "azure" and all([
+        os.getenv("AZURE_OPENAI_API_KEY"),
+        os.getenv("AZURE_OPENAI_ENDPOINT"),
+        os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+    ]):
         return sales.Agent(
             azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT")
+            azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+            azure_chat_deployment=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT")
         )
     else:
-        return sales.Agent(
-            llm_model="unsloth/Qwen3-4B-GGUF",
-            use_gpu=True
-        )
+        # Fallback to open-source
+        return sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
 
 # Use based on environment or requirements
-agent = get_agent(use_azure=os.getenv("USE_AZURE_BACKEND", "false").lower() == "true")
+agent = get_agent(backend_preference="openai")
+```
+
+### Environment-Based Configuration
+
+```python
+# Environment variables for all backends
+# .env file example:
+
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+OPENAI_CHAT_MODEL=gpt-4o
+
+# Azure Configuration  
+AZURE_OPENAI_API_KEY=your_azure_api_key
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-large
+AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4o
+
+# Open-source Configuration
+OPENSOURCE_LLM_MODEL=unsloth/Qwen3-4B-GGUF
+USE_GPU=true
+
+# Backend Selection
+DEEPMOST_BACKEND=openai  # or azure, opensource
+```
+
+```python
+import os
+from deepmost import sales
+
+def create_agent_from_env():
+    """Create agent based on environment configuration"""
+    backend = os.getenv("DEEPMOST_BACKEND", "auto").lower()
+    
+    if backend == "openai":
+        return sales.Agent(
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            openai_embedding_model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large"),
+            openai_chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o")
+        )
+    elif backend == "azure":
+        return sales.Agent(
+            azure_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            azure_deployment=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+            azure_chat_deployment=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT")
+        )
+    elif backend == "opensource":
+        return sales.Agent(
+            llm_model=os.getenv("OPENSOURCE_LLM_MODEL", "unsloth/Qwen3-4B-GGUF"),
+            use_gpu=os.getenv("USE_GPU", "true").lower() == "true"
+        )
+    else:
+        # Auto-select based on available credentials
+        if os.getenv("OPENAI_API_KEY"):
+            return create_agent_from_env.__wrapped__()  # Retry with openai
+        elif all([os.getenv("AZURE_OPENAI_API_KEY"), os.getenv("AZURE_OPENAI_ENDPOINT")]):
+            return create_agent_from_env.__wrapped__()  # Retry with azure
+        else:
+            return sales.Agent(llm_model="unsloth/Qwen3-4B-GGUF")
+
+agent = create_agent_from_env()
 ```
 
 ## 🤝 Contributing
@@ -715,7 +957,7 @@ We welcome contributions! Focus areas:
 - Additional LLM model support  
 - Integration with popular sales tools
 - Performance optimizations
-- Azure OpenAI enhancements
+- New backend implementations
 
 ```bash
 git clone https://github.com/DeepMostInnovations/deepmost.git
@@ -734,7 +976,7 @@ cd deepmost
 # Install with development dependencies
 pip install -e .[dev]
 
-# Run tests
+# Run tests for all backends
 pytest tests/ -v
 
 # Run code formatting
@@ -750,13 +992,12 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 🙏 Acknowledgments
 
 - **PPO Training**: [Stable Baselines3](https://github.com/DLR-RM/stable-baselines3)
-- **Embeddings**: [Sentence Transformers](https://www.sbert.net/) & [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service)
-- **LLM Support**: [llama-cpp-python](https://github.com/abetlen/llama-cpp-python)
+- **Embeddings**: [Sentence Transformers](https://www.sbert.net/), [OpenAI](https://openai.com/), & [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service)
+- **LLM Support**: [llama-cpp-python](https://github.com/abetlen/llama-cpp-python) & [OpenAI API](https://platform.openai.com/)
 - **Models**: [HuggingFace](https://huggingface.co/) & [Unsloth](https://github.com/unslothai/unsloth)
 
 ## 📞 Support & Links
 
-- **Documentation**: [https://deepmost.readthedocs.io/](https://deepmost.readthedocs.io/)
 - **GitHub Issues**: [https://github.com/DeepMostInnovations/deepmost/issues](https://github.com/DeepMostInnovations/deepmost/issues)
 - **PyPI Package**: [https://pypi.org/project/deepmost/](https://pypi.org/project/deepmost/)
 - **Model Repository**: [https://huggingface.co/DeepMostInnovations](https://huggingface.co/DeepMostInnovations)
@@ -770,15 +1011,22 @@ MIT License - see [LICENSE](LICENSE) file for details.
 - [ ] Verify GPU setup with `torch.cuda.is_available()`
 - [ ] Test with simple conversation using `sales.analyze_progression()`
 
-### For Production/Enterprise (Azure)
+### For Production (OpenAI)
+- [ ] Get OpenAI API key from [platform.openai.com](https://platform.openai.com)
+- [ ] Set `OPENAI_API_KEY` environment variable
+- [ ] Install DeepMost: `pip install deepmost`
+- [ ] Test connection and run analysis
+
+### For Enterprise (Azure OpenAI)
 - [ ] Create Azure OpenAI resource
-- [ ] Deploy embedding model (text-embedding-ada-002 recommended)
-- [ ] Set environment variables for API credentials
+- [ ] Deploy embedding model (`text-embedding-3-large`)
+- [ ] Deploy chat model (`gpt-4o` or `gpt-35-turbo`)
+- [ ] Set Azure environment variables
 - [ ] Install DeepMost: `pip install deepmost`
 - [ ] Test Azure connection and run analysis
 
 ---
 
-**Transform your sales conversations into actionable insights. Start analyzing what drives conversions today!** 🎯
+**Transform your sales conversations into actionable insights with three powerful backend options. Choose the approach that fits your needs!** 🎯
 
 Made with ❤️ by [DeepMost Innovations](https://www.deepmostai.com/)
