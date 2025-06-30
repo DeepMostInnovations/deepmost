@@ -5,17 +5,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepmost"
-version = "0.4.5"
+version = "0.5.1" # Version updated for new backend
 authors = [
     {name = "DeepMost Innovations", email = "support@deepmostai.com"},
 ]
-description = "Sales conversion prediction using reinforcement learning"
+description = "Sales conversion prediction and prospect analysis using reinforcement learning"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
-keywords = ["sales", "conversion", "prediction", "reinforcement-learning", "ai", "machine-learning", "llm", "nlp", "gguf"]
+keywords = ["sales", "prospecting", "vllm", "conversion", "prediction", "reinforcement-learning", "ai", "machine-learning", "llm", "nlp", "gguf", "agent"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "License :: OSI Approved :: MIT License",
@@ -37,13 +37,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# GPU support with llama-cpp-python compiled for CUDA/Metal
+# GPU support for the core open-source backend
 gpu = [
     "llama-cpp-python[server]>=0.2.20",
 ]
+# Prospecting feature with VLLM backend
+prospecting-vllm = [
+    "smolagents[vllm]>=0.1.0",
+    "duckduckgo-search>=5.0.0"
+]
 # Development dependencies including GPU support
 dev = [
-    "deepmost[gpu]", 
+    "deepmost[gpu,prospecting-vllm]", 
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "black>=23.0.0",
@@ -66,10 +71,5 @@ where = ["."]
 include = ["deepmost*"]
 exclude = ["tests*", "*.tests", "*.tests.*", "tests.*"]
 
-# Alternative explicit package configuration if auto-discovery fails
-# [tool.setuptools.packages]
-# find = {}
-
-# Include additional data files if needed
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md", "*.rst"]
