@@ -1,4 +1,4 @@
-# deepmost/prospecting.py (With a more robust prompt)
+# deepmost/prospecting.py (Final version with robust prompting)
 
 import json
 from typing import Dict, Any, List
@@ -35,7 +35,6 @@ class ProfileBuilderTool(Tool):
 class RealTimeSalesSimulatorTool(Tool):
     """
     Tool to simulate a turn in a sales conversation for real-time assistance.
-    It takes the conversation history and generates the next turn.
     """
     name = "real_time_sales_simulator"
     description = "Simulates the next turn of a sales conversation to generate a high-conversion dialogue."
@@ -76,7 +75,7 @@ class ProspectingAgent:
     conversation plan.
     """
 
-    def __init__(self, model_id: str = "Qwen/Qwen2.5-Coder-32B-Instruct", use_gpu: bool = True):
+    def __init__(self, model_id: str = "unsloth/Qwen3-4B-GGUF", use_gpu: bool = True):
         """Initializes the ProspectingAgent."""
         self.model = TransformersModel(
             model_id=model_id,
@@ -92,17 +91,21 @@ class ProspectingAgent:
         """
         Generates the initial profile and the first turn of the conversation.
         """
-        # IMPROVED PROMPT for better tool orchestration
+        # IMPROVED PROMPT with explicit step limit and clearer instructions
         prompt = f"""
         Your task is to generate a sales plan for '{prospect_name}' ({prospect_info}).
-        You MUST call the tools in this exact order to build the plan step-by-step.
+        You will execute a sequence of tool calls. You have a maximum of 10 steps to complete this task.
 
-        Step 1: Call the `web_search` tool to find professional information on '{prospect_name}'.
-        Step 2: Take the output from Step 1 and use it as the 'information' argument for the `profile_builder` tool.
-        Step 3: Devise a compelling opening sales message based on the created profile.
-        Step 4: Call the `real_time_sales_simulator` tool. Use the JSON profile from Step 2, an empty list `[]` for 'conversation_history', and your devised opening message for 'salesperson_message'.
+        **Plan:**
+        1. **Search:** Call the `web_search` tool to find professional information about '{prospect_name}'.
+        2. **Profile:** Call the `profile_builder` tool, using the search results from Step 1 as the 'information' argument.
+        3. **Simulate:** Devise a compelling opening sales message. Then, call the `real_time_sales_simulator` tool with the following arguments:
+           - `prospect_profile_json`: The JSON string output from Step 2.
+           - `conversation_history`: An empty list `[]`.
+           - `salesperson_message`: Your devised opening message.
 
-        The final output of your execution MUST be the JSON string from Step 4. Do not add any other text.
+        Your final action must be to output the JSON string from the `real_time_sales_simulator` tool.
+        If you cannot complete this plan, output an error message in JSON format.
         """
         final_result_str = self.agent.run(prompt)
         
