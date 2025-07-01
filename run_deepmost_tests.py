@@ -1,39 +1,42 @@
-# run_deepmost_tests.py (Simplified and focused)
+# run_deepmost_tests.py
 
 import os
 import json
-from deepmost import sales, prospecting
+from deepmost import prospecting
 
-# --- Main Test: Open-Source Prospecting & Real-time Assistance Workflow ---
-print("\n--- Running DeepMost Prospecting & Assistance Test (Open-Source) ---")
+# --- Main Test: Fast Prospecting & Simulation Workflow ---
+print("\n--- Running DeepMost's Fast Prospecting Workflow ---")
 
 prospect_name = "Satya Nadella"
-prospect_info = "CEO of Microsoft, focusing on AI transformation"
+prospect_info = "CEO of Microsoft, AI strategy"
 
-# A capable model is CRITICAL for the agent to correctly orchestrate tool calls.
-# Using a smaller model will likely result in the agent getting stuck.
-prospecting_model = "unsloth/Qwen3-0.6B"
-print(f"Testing prospecting.prospect with model_id: {prospecting_model}\n")
+# Define the two different models to be used
+search_model = "unsloth/Qwen3-0.6B"
+simulation_model = "unsloth/Qwen3-4B-GGUF"
+
+print(f"Using Search Model (safetensors): {search_model}")
+print(f"Using Simulation Model (GGUF): {simulation_model}\n")
 
 try:
-    # This function now uses a more robust prompt to guide the agent.
-    initial_plan = prospecting.prospect(
+    # Pass the specific models to the prospect function
+    final_plan = prospecting.prospect(
         prospect_name=prospect_name,
         prospect_info=prospect_info,
-        model_id=prospecting_model
+        search_model_id=search_model,
+        simulation_model_id=simulation_model
     )
     
-    print("--- Initial Prospecting Plan Generated ---")
-    # Pretty-print the JSON output
-    print(json.dumps(initial_plan, indent=2))
+    print("\n--- Final Prospecting Plan Generated ---")
+    # Pretty-print the final JSON output
+    print(json.dumps(final_plan, indent=2))
     
-    if initial_plan.get("error"):
+    if final_plan.get("conversation_plan", {}).get("error"):
         print("\n--- Test Warning: Agent returned a controlled error. ---")
     
-    print("\n--- Open-Source Prospecting & Assistance Test Complete ---")
+    print("\n--- Fast Prospecting Workflow Test Complete ---")
 
 except Exception as e:
     # This will catch unexpected Python errors during the run.
-    print(f"\n--- Open-Source Prospecting & Assistance Test Failed with an Exception: {e} ---")
+    print(f"\n--- Prospecting Workflow Test Failed with an Exception: {e} ---")
     import traceback
     traceback.print_exc()

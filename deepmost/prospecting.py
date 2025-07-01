@@ -10,8 +10,6 @@ except ImportError:
 
 from .sales import Agent as SalesAgent
 
-# --- Tool-like classes, now used as regular Python objects ---
-
 class ProfileBuilder:
     """Class to build a structured JSON profile from unstructured text."""
     def build(self, person_name: str, information: str) -> Dict[str, Any]:
@@ -22,15 +20,15 @@ class ProfileBuilder:
             "unstructured_data": information,
             "potential_interests": ["AI-driven efficiency", "CRM solutions", "Sales technology"],
             "pain_points_hypothesis": ["Inefficient lead prioritization", "Poor sales forecasting", "Manual follow-up processes"],
-            "company_name": "Microsoft"  # This could be extracted from info in a real scenario
+            "company_name": "Microsoft"
         }
         return profile
 
 class RealTimeSalesSimulator:
     """Class to simulate the first turn of a sales conversation."""
-    def simulate_first_turn(self, prospect_profile: Dict[str, Any], llm_model: str) -> Dict[str, Any]:
+    def simulate_first_turn(self, prospect_profile: Dict[str, Any], gguf_model_id: str) -> Dict[str, Any]:
         """
-        Uses deepmost.sales.Agent to generate an opening and simulate a response.
+        Uses deepmost.sales.Agent with a GGUF model to simulate a response.
         """
         system_prompt = f"""
         You are a helpful sales assistant. Your goal is to generate a realistic response from the prospect, '{prospect_profile.get('name', 'the client')}',
@@ -38,32 +36,29 @@ class RealTimeSalesSimulator:
         Your response should reflect this context.
         """
         
-        # Devise a compelling opening line based on the profile
         opening_message = (
             f"Hi {prospect_profile.get('name', 'there')}, I saw you're interested in '{prospect_profile.get('potential_interests', ['AI'])[0]}'. "
             f"Given your focus at {prospect_profile.get('company_name', 'your company')}, I thought you'd find our AI-CRM's approach "
             f"to solving {prospect_profile.get('pain_points_hypothesis', ['key challenges'])[0]} interesting."
         )
 
-        sales_agent = SalesAgent(llm_model=llm_model)
+        # This part requires a GGUF model because of how sales.Agent is built
+        sales_agent = SalesAgent(llm_model=gguf_model_id)
         result = sales_agent.predict_with_response(
-            conversation=[],  # Start with an empty conversation
+            conversation=[],
             user_input=opening_message,
             system_prompt=system_prompt
         )
         
-        # Add the opening message to the result for clarity
         result['opening_message'] = opening_message
         return result
-
-# --- Agent for Single-Step Web Search ---
 
 class SearchAgent:
     """A simplified agent whose only job is to perform a web search."""
     def __init__(self, model_id: str, use_gpu: bool = True):
         self.model = TransformersModel(
             model_id=model_id,
-            max_new_tokens=2048,  # Can be smaller as we only need search results
+            max_new_tokens=2048,
             device_map="auto"
         )
         self.agent = CodeAgent(
@@ -73,19 +68,22 @@ class SearchAgent:
         )
 
     def search(self, query: str) -> str:
-        """Runs a web search and returns the summarized results as a string."""
+        """Runs a web search and returns the summarized results."""
         prompt = f"Please perform a web search for the following query and return the summarized results: '{query}'"
         search_results = self.agent.run(prompt)
         return search_results
 
-# --- High-Level Orchestrator Function ---
-
-def plan_and_simulate(prospect_name: str, prospect_info: str, model_id: str) -> Dict[str, Any]:
+def plan_and_simulate(
+    prospect_name: str,
+    prospect_info: str,
+    search_model_id: str,
+    simulation_model_id: str
+) -> Dict[str, Any]:
     """
     Orchestrates the fast, single-step search and subsequent processing.
     """
-    print("Step 1: Using LLM Agent for single-step web search...")
-    search_agent = SearchAgent(model_id=model_id)
+    print(f"Step 1: Using '{search_model_id}' for single-step web search...")
+    search_agent = SearchAgent(model_id=search_model_id)
     search_query = f"{prospect_name}, {prospect_info}"
     search_results = search_agent.search(search_query)
     print("...Web search complete.")
@@ -95,9 +93,9 @@ def plan_and_simulate(prospect_name: str, prospect_info: str, model_id: str) -> 
     profile = profile_builder.build(prospect_name, search_results)
     print("...Profile built.")
     
-    print("Step 3: Simulating conversation with deterministic Python code...")
+    print(f"Step 3: Simulating conversation with GGUF model '{simulation_model_id}'...")
     simulator = RealTimeSalesSimulator()
-    simulation_result = simulator.simulate_first_turn(profile, model_id)
+    simulation_result = simulator.simulate_first_turn(profile, simulation_model_id)
     print("...Simulation complete.")
     
     final_plan = {
@@ -107,10 +105,16 @@ def plan_and_simulate(prospect_name: str, prospect_info: str, model_id: str) -> 
     
     return final_plan
 
-def prospect(prospect_name: str, prospect_info: str, **kwargs) -> Dict[str, Any]:
+def prospect(
+    prospect_name: str,
+    prospect_info: str,
+    search_model_id: str = "unsloth/Qwen3-0.6B",
+    simulation_model_id: str = "unsloth/Qwen3-4B-GGUF",
+    **kwargs
+) -> Dict[str, Any]:
     """
-    High-level function to generate an initial prospecting plan and conversation starter
-    using the fast, single-step search workflow.
+    High-level function to generate an initial prospecting plan.
+    - search_model_id: A standard Hugging Face model for the search agent.
+    - simulation_model_id: A GGUF-compatible model for conversation simulation.
     """
-    model_id = kwargs.get("model_id", "unsloth/Qwen3-4B-GGUF")
-    return plan_and_simulate(prospect_name, prospect_info, model_id)
+    return plan_and_simulate(prospect_name, prospect_info, search_model_id, simulation_model_id)
