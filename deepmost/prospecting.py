@@ -1,115 +1,126 @@
-# deepmost/prospecting.py
+# deepmost/prospecting.py (Final version with robust prompting)
 
 import json
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 try:
-    from smolagents import CodeAgent, TransformersModel, WebSearchTool
+    from smolagents import CodeAgent, Tool, TransformersModel, WebSearchTool
 except ImportError:
     raise ImportError("smolagents is not installed. Please install it with `pip install deepmost[prospecting]` or `pip install smolagents[toolkit]`")
 
 from .sales import Agent as SalesAgent
 
-# --- Tool-like classes, now used as regular Python objects ---
+class ProfileBuilderTool(Tool):
+    """Tool to build a structured JSON profile from unstructured text."""
+    name = "profile_builder"
+    description = "Compiles unstructured text about a person into a structured JSON profile."
+    inputs = {
+        "person_name": {"type": "string", "description": "The full name of the person."},
+        "information": {"type": "string", "description": "Unstructured text containing information about the person from web search."},
+    }
+    output_type = "string"
 
-class ProfileBuilder:
-    """Class to build a structured JSON profile from unstructured text."""
-    def build(self, person_name: str, information: str) -> Dict[str, Any]:
-        """Creates a detailed JSON profile from search results."""
+    def forward(self, person_name: str, information: str) -> str:
+        """Creates a detailed JSON profile."""
         profile = {
             "name": person_name,
             "summary": f"Profile based on web search for {person_name}.",
             "unstructured_data": information,
             "potential_interests": ["AI-driven efficiency", "CRM solutions", "Sales technology"],
             "pain_points_hypothesis": ["Inefficient lead prioritization", "Poor sales forecasting", "Manual follow-up processes"],
-            "company_name": "Microsoft"  # This could be extracted from info in a real scenario
+            "company_name": "Microsoft" 
         }
-        return profile
+        return json.dumps(profile, indent=2)
 
-class RealTimeSalesSimulator:
-    """Class to simulate the first turn of a sales conversation."""
-    def simulate_first_turn(self, prospect_profile: Dict[str, Any], llm_model: str) -> Dict[str, Any]:
+class RealTimeSalesSimulatorTool(Tool):
+    """
+    Tool to simulate a turn in a sales conversation for real-time assistance.
+    """
+    name = "real_time_sales_simulator"
+    description = "Simulates the next turn of a sales conversation to generate a high-conversion dialogue."
+    inputs = {
+        "prospect_profile_json": {"type": "string", "description": "The JSON profile of the prospect."},
+        "conversation_history": {"type": "array", "description": "The list of previous messages in the conversation."},
+        "salesperson_message": {"type": "string", "description": "The latest message from the salesperson to the prospect."},
+    }
+    output_type = "string"
+
+    def forward(self, prospect_profile_json: str, conversation_history: list, salesperson_message: str) -> str:
         """
-        Uses deepmost.sales.Agent to generate an opening and simulate a response.
+        Uses the deepmost.sales.Agent to simulate the next turn of the conversation.
         """
+        try:
+            profile = json.loads(prospect_profile_json)
+        except json.JSONDecodeError:
+            return json.dumps({"error": "Invalid JSON profile provided."})
+
         system_prompt = f"""
-        You are a helpful sales assistant. Your goal is to generate a realistic response from the prospect, '{prospect_profile.get('name', 'the client')}',
-        who is interested in solving challenges like {prospect_profile.get('pain_points_hypothesis', [])}.
-        Your response should reflect this context.
+        You are a helpful sales assistant. Your goal is to generate a response from the prospect, '{profile.get('name', 'the client')}',
+        that continues the conversation in a realistic way. The prospect is interested in solving challenges like
+        {profile.get('pain_points_hypothesis', [])}. Your response should reflect this context.
         """
         
-        # Devise a compelling opening line based on the profile
-        opening_message = (
-            f"Hi {prospect_profile.get('name', 'there')}, I saw you're interested in '{prospect_profile.get('potential_interests', ['AI'])[0]}'. "
-            f"Given your focus at {prospect_profile.get('company_name', 'your company')}, I thought you'd find our AI-CRM's approach "
-            f"to solving {prospect_profile.get('pain_points_hypothesis', ['key challenges'])[0]} interesting."
-        )
-
-        sales_agent = SalesAgent(llm_model=llm_model)
+        sales_agent = sales.Agent() 
         result = sales_agent.predict_with_response(
-            conversation=[],  # Start with an empty conversation
-            user_input=opening_message,
+            conversation=conversation_history,
+            user_input=salesperson_message,
             system_prompt=system_prompt
         )
         
-        # Add the opening message to the result for clarity
-        result['opening_message'] = opening_message
-        return result
+        return json.dumps(result, indent=2)
 
-# --- Agent for Single-Step Web Search ---
+class ProspectingAgent:
+    """
+    An agent that researches a prospect and generates a real-time, high-conversion
+    conversation plan.
+    """
 
-class SearchAgent:
-    """A simplified agent whose only job is to perform a web search."""
-    def __init__(self, model_id: str, use_gpu: bool = True):
+    def __init__(self, model_id: str = "unsloth/Qwen3-4B-GGUF", use_gpu: bool = True):
+        """Initializes the ProspectingAgent."""
         self.model = TransformersModel(
             model_id=model_id,
-            max_new_tokens=2048,  # Can be smaller as we only need search results
+            max_new_tokens=4096,
             device_map="auto"
         )
         self.agent = CodeAgent(
-            tools=[WebSearchTool()],
+            tools=[WebSearchTool(), ProfileBuilderTool(), RealTimeSalesSimulatorTool()],
             model=self.model,
+            max_steps=1
         )
 
-    def search(self, query: str) -> str:
-        """Runs a web search and returns the summarized results as a string."""
-        prompt = f"Please perform a web search for the following query and return the summarized results: '{query}'"
-        search_results = self.agent.run(prompt)
-        return search_results
+    def generate_plan(self, prospect_name: str, prospect_info: str) -> Dict[str, Any]:
+        """
+        Generates the initial profile and the first turn of the conversation.
+        """
+        # IMPROVED PROMPT with explicit step limit and clearer instructions
+        prompt = f"""
+        Your task is to generate a sales plan for '{prospect_name}' ({prospect_info}).
+        You will execute a sequence of tool calls. You have a maximum of 10 steps to complete this task.
 
-# --- High-Level Orchestrator Function ---
+        **Plan:**
+        1. **Search:** Call the `web_search` tool to find professional information about '{prospect_name}'.
+        2. **Profile:** Call the `profile_builder` tool, using the search results from Step 1 as the 'information' argument.
+        3. **Simulate:** Devise a compelling opening sales message. Then, call the `real_time_sales_simulator` tool with the following arguments:
+           - `prospect_profile_json`: The JSON string output from Step 2.
+           - `conversation_history`: An empty list `[]`.
+           - `salesperson_message`: Your devised opening message.
 
-def plan_and_simulate(prospect_name: str, prospect_info: str, model_id: str) -> Dict[str, Any]:
-    """
-    Orchestrates the fast, single-step search and subsequent processing.
-    """
-    print("Step 1: Using LLM Agent for single-step web search...")
-    search_agent = SearchAgent(model_id=model_id)
-    search_query = f"{prospect_name}, {prospect_info}"
-    search_results = search_agent.search(search_query)
-    print("...Web search complete.")
-
-    print("Step 2: Building profile with deterministic Python code...")
-    profile_builder = ProfileBuilder()
-    profile = profile_builder.build(prospect_name, search_results)
-    print("...Profile built.")
-    
-    print("Step 3: Simulating conversation with deterministic Python code...")
-    simulator = RealTimeSalesSimulator()
-    simulation_result = simulator.simulate_first_turn(profile, model_id)
-    print("...Simulation complete.")
-    
-    final_plan = {
-        "prospect_profile": profile,
-        "conversation_plan": simulation_result
-    }
-    
-    return final_plan
+        Your final action must be to output the JSON string from the `real_time_sales_simulator` tool.
+        If you cannot complete this plan, output an error message in JSON format.
+        """
+        final_result_str = self.agent.run(prompt)
+        
+        try:
+            return json.loads(final_result_str)
+        except (json.JSONDecodeError, TypeError):
+            return {
+                "error": "The agent did not produce a valid JSON output.",
+                "raw_output": final_result_str
+            }
 
 def prospect(prospect_name: str, prospect_info: str, **kwargs) -> Dict[str, Any]:
     """
-    High-level function to generate an initial prospecting plan and conversation starter
-    using the fast, single-step search workflow.
+    High-level function to generate an initial prospecting plan and conversation starter.
     """
-    model_id = kwargs.get("model_id", "unsloth/Qwen3-4B-GGUF")
-    return plan_and_simulate(prospect_name, prospect_info, model_id)
+    agent = ProspectingAgent(**kwargs)
+    return agent.generate_plan(prospect_name, prospect_info)
